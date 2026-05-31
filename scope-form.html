@@ -1,0 +1,923 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scoping · Slot Studio</title>
+<!--
+  Reusable scoping form (MVP). ONE page serves every game/discipline/phase —
+  context comes from the URL:
+    scope-form.html?pitch=totem-torch&game=Totem%20Torch&type=Original&apps=MVM
+                    &disc=FEE&phase=2&p2=70&lang=en
+                    &pitchUrl=https://...&webhook=https://...
+  phase = 1 (pitch-meeting read) | 2 (pre-greenlight estimate) | 3 (reconcile)
+  Defaults are demo-friendly so it renders with no params.
+  Submits a JSON payload to ?webhook= (n8n) if set; otherwise shows a copyable
+  preview (interim manual path). Baselines are embedded for the prototype; in
+  production the form reads them from the tool's published snapshot. Keep in
+  sync with the tool's Scope Templates (GD = pre-prod, updated 2026-05-30).
+-->
+<style>
+:root{
+  --ink:#23252b; --ink2:#4d5366; --ink3:#7a7f8c;
+  --bone:#faf6ee; --cream:#f3ecdd; --surface:#fffdf8; --border:#e3dcc9; --border2:#efe9da;
+  --navy:#1f2a44; --terra:#B86B4A; --terra-soft:#F2D9CB; --terra-ink:#8E4F32;
+  --sage:#5F7D55; --sage-soft:#e2ead8; --warn:#C49328; --warn-soft:#FAE7BD;
+  --font-serif:"Fraunces",Georgia,serif; --font-sans:"Inter Tight","Inter",system-ui,sans-serif;
+  --font-mono:"JetBrains Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bone);color:var(--ink);font-family:var(--font-sans);font-size:15px;line-height:1.55;}
+.wrap{max-width:720px;margin:0 auto;padding:0 18px 80px;}
+header{background:var(--navy);color:#fff;}
+.head-inner{max-width:720px;margin:0 auto;padding:18px;display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;}
+.brand{font-family:var(--font-serif);font-size:15px;letter-spacing:.02em;opacity:.85;}
+.brand b{font-weight:600}
+h1{font-family:var(--font-serif);font-weight:500;font-size:26px;margin:6px 0 4px;}
+.sub-name{font-size:13px;color:#cfd6e6;margin:0 0 8px;}
+.ctx{font-family:var(--font-mono);font-size:12px;color:#cfd6e6;letter-spacing:.03em;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.ctx .chip{display:inline-block;background:rgba(255,255,255,.12);border-radius:20px;padding:2px 10px;}
+.pitch-link{color:#fff;background:var(--terra);text-decoration:none;border-radius:20px;padding:3px 12px;font-family:var(--font-sans);font-weight:600;font-size:12px;}
+.pitch-link:hover{background:#a85e3f;}
+.lang{display:flex;border:1px solid rgba(255,255,255,.3);border-radius:20px;overflow:hidden;font-family:var(--font-mono);font-size:12px;}
+.lang button{background:transparent;color:#cfd6e6;border:none;padding:5px 12px;cursor:pointer;}
+.lang button.on{background:#fff;color:var(--navy);font-weight:600;}
+.tabs{display:flex;gap:6px;border-bottom:1.5px solid var(--border);margin:22px 0 4px;flex-wrap:wrap;}
+.tab{background:none;border:none;font-family:var(--font-sans);font-size:14px;font-weight:600;color:var(--ink3);padding:10px 14px;cursor:pointer;border-bottom:2.5px solid transparent;margin-bottom:-1.5px;}
+.tab.on{color:var(--terra-ink);border-bottom-color:var(--terra);}
+.pane{display:none;padding-top:18px;}
+.pane.on{display:block;animation:f .18s ease;}
+@keyframes f{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px;}
+.intro{background:var(--cream);border:1px solid var(--border);border-radius:10px;padding:13px 15px;margin-bottom:16px;font-size:14px;color:var(--ink2);}
+.field{margin-bottom:16px;}
+label.lbl{display:block;font-weight:600;font-size:14px;margin-bottom:5px;}
+.help{font-size:12.5px;color:var(--ink3);margin:0 0 7px;}
+input[type=text],input[type=number],textarea,select{
+  width:100%;font-family:var(--font-sans);font-size:15px;color:var(--ink);
+  background:var(--bone);border:1px solid var(--border);border-radius:8px;padding:9px 11px;outline:none;}
+input:focus,textarea:focus,select:focus{border-color:var(--terra);background:#fff;}
+textarea{min-height:62px;resize:vertical;}
+.req{color:var(--terra);font-weight:700;}
+.tip{display:inline-block;margin-left:6px;width:16px;height:16px;line-height:16px;text-align:center;border-radius:50%;background:var(--cream);border:1px solid var(--border);color:var(--ink2);font-size:11px;cursor:help;font-weight:700;}
+.baseline-box{display:flex;align-items:baseline;gap:10px;background:var(--cream);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:16px;}
+.baseline-box .n{font-family:var(--font-serif);font-size:30px;font-weight:500;color:var(--navy);}
+.baseline-box .t{font-size:13px;color:var(--ink2);}
+.compare{display:flex;gap:10px;margin-bottom:16px;}
+.compare .box{flex:1;background:var(--cream);border:1px solid var(--border);border-radius:10px;padding:10px 12px;text-align:center;}
+.compare .box .n{font-family:var(--font-serif);font-size:24px;color:var(--navy);}
+.compare .box .t{font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:.04em;}
+.delta-note{display:none;background:var(--terra-soft);border:1px solid #e6c3b1;border-radius:9px;padding:10px 13px;font-size:13.5px;color:var(--terra-ink);margin:-4px 0 12px;}
+.delta-note.show{display:block;}
+.radio-row{display:flex;gap:8px;flex-wrap:wrap;}
+.radio-row label{flex:1;min-width:120px;display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:9px;padding:10px 12px;cursor:pointer;font-size:14px;background:var(--bone);}
+.radio-row input{width:auto;margin:0;}
+.toggle-row{display:flex;align-items:flex-start;gap:9px;margin-bottom:9px;font-size:14px;}
+.toggle-row input{margin-top:3px;width:auto;}
+.sub{display:none;border-left:2px solid var(--border);padding-left:14px;margin:2px 0 12px 4px;}
+.sub.show{display:block;}
+.vfx{display:none;} .vfx.show{display:block;}
+.row3{display:grid;grid-template-columns:1fr 110px 1fr;gap:8px;margin-bottom:8px;}
+.row3 select{padding:8px;}
+.rowm{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;}
+.rowm1 input{margin-bottom:8px;}
+.addbtn{font-size:13px;padding:7px 14px;}
+.del-x{flex:0 0 auto;background:transparent;border:1px solid var(--border);color:var(--ink3);border-radius:8px;cursor:pointer;padding:0 10px;}
+.del-x:hover{color:#a84539;border-color:#e0b3ab;}
+.muted{font-size:12px;color:var(--ink3);}
+.btn{font-family:var(--font-sans);font-weight:600;font-size:15px;border-radius:9px;padding:12px 22px;cursor:pointer;border:1px solid transparent;}
+.btn-primary{background:var(--terra);color:#fff;} .btn-primary:hover{background:#a85e3f;}
+.btn-ghost{background:transparent;border-color:var(--border);color:var(--ink2);}
+.actions{display:flex;gap:12px;align-items:center;margin-top:4px;}
+.status{font-size:13.5px;} .status.err{color:#a84539;} .status.ok{color:var(--sage);font-weight:600;}
+.result{display:none;margin-top:16px;} .result.show{display:block;}
+.result pre{background:var(--navy);color:#dfe6f2;font-family:var(--font-mono);font-size:11.5px;padding:14px;border-radius:9px;overflow:auto;max-height:280px;}
+.success-banner{display:none;background:var(--sage-soft);border:1px solid #b9cdab;border-radius:10px;padding:14px 16px;margin-bottom:16px;color:#33502c;}
+.success-banner.show{display:block;}
+.guide h2,.proc h2{font-family:var(--font-serif);font-weight:500;font-size:19px;margin:22px 0 6px;color:var(--navy);}
+.guide h2:first-child,.proc h2:first-child{margin-top:0;}
+.guide p,.proc p{margin:0 0 10px;color:var(--ink2);}
+.guide ul,.proc ul{margin:0 0 12px;padding-left:20px;color:var(--ink2);}
+.guide li,.proc li{margin-bottom:5px;}
+.callout{background:var(--cream);border:1px solid var(--border);border-radius:10px;padding:13px 15px;margin:0 0 14px;font-size:14px;}
+.phase-card{border:1px solid var(--border);border-left:4px solid var(--terra);border-radius:10px;padding:14px 16px;margin-bottom:12px;background:var(--surface);}
+.phase-card h3{font-family:var(--font-serif);font-weight:500;font-size:17px;margin:0 0 4px;color:var(--navy);}
+.phase-card .who{font-family:var(--font-mono);font-size:11px;color:var(--terra-ink);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;}
+.phase-card.p1{border-left-color:#A6C0D9;} .phase-card.p2{border-left-color:var(--terra);}
+.phase-card.p3{border-left-color:var(--sage);} .phase-card.p4{border-left-color:var(--warn);}
+.exempt{background:var(--warn-soft);border:1px solid #e6cf8c;border-radius:10px;padding:16px;color:#6f5512;}
+@media(max-width:560px){.row3,.rowm{grid-template-columns:1fr;} .compare{flex-direction:column;}}
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+<header>
+  <div class="head-inner">
+    <div>
+      <div class="brand"><b>Slot</b>Studio · <span id="kicker">Scoping</span></div>
+      <h1 id="game-title">—</h1>
+      <div class="sub-name" id="sub-name" style="display:none"></div>
+      <div class="ctx">
+        <span class="chip" id="chip-type">—</span>
+        <span class="chip" id="chip-phase">Phase 2</span>
+        <a class="pitch-link" id="pitch-link" href="#" target="_blank" rel="noopener" style="display:none">↗ <span id="pitch-link-label">View the pitch</span></a>
+      </div>
+    </div>
+    <div class="lang" role="group" aria-label="Language">
+      <button id="lang-en" class="on" onclick="setLang('en')">EN</button>
+      <button id="lang-es" onclick="setLang('es')">ES</button>
+      <button id="lang-vi" onclick="setLang('vi')">VI</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="tabs">
+    <button class="tab on" data-tab="form" onclick="showTab('form')"><span id="tab-form-label">Your estimate</span></button>
+    <button class="tab" data-tab="guide" onclick="showTab('guide')" id="tab-guide-label">How this works</button>
+    <button class="tab" data-tab="proc" onclick="showTab('proc')" id="tab-proc-label">The process</button>
+  </div>
+
+  <!-- FORM TAB -->
+  <div class="pane on" id="pane-form">
+    <div id="exempt-msg" class="exempt" style="display:none"></div>
+
+    <div id="form-body">
+      <div class="intro" id="phase-intro"></div>
+
+      <div class="card">
+        <div class="field">
+          <label class="lbl" for="f-disc" id="lbl-disc">Your discipline</label>
+          <p class="help" id="help-disc">Pick the part of the game you're estimating.</p>
+          <select id="f-disc" onchange="onDiscChange()"></select>
+        </div>
+
+        <!-- PHASE 1: rough read -->
+        <div id="p1-fields" style="display:none">
+          <div class="field">
+            <label class="lbl" id="lbl-p1size">Rough size vs. typical</label>
+            <p class="help" id="help-p1size">Just a gut read — no day counts needed.</p>
+            <div class="radio-row" id="p1-size-row"></div>
+          </div>
+          <div class="field">
+            <label class="lbl" id="lbl-p1flags">Flags (check any that apply)</label>
+            <div class="toggle-row"><input type="checkbox" id="p1-flag-baseline"><label for="p1-flag-baseline" id="lbl-p1fb">Looks like a standard build</label></div>
+            <div class="toggle-row"><input type="checkbox" id="p1-flag-risks"><label for="p1-flag-risks" id="lbl-p1fr">I see risks worth flagging</label></div>
+            <div class="toggle-row"><input type="checkbox" id="p1-flag-invest"><label for="p1-flag-invest" id="lbl-p1fi">Needs investigation before it can be sized</label></div>
+          </div>
+          <div class="field">
+            <label class="lbl" for="f-p1notes" id="lbl-p1notes">Notes</label>
+            <textarea id="f-p1notes"></textarea>
+          </div>
+        </div>
+
+        <!-- PHASE 2 + 3: numeric estimate -->
+        <div id="num-fields" style="display:none">
+          <!-- Phase 2 baseline-only -->
+          <div class="baseline-box" id="baseline-box">
+            <span class="n" id="baseline-n">—</span>
+            <span class="t"><span id="baseline-pre">Typical for</span> <b id="baseline-type">—</b>: <span id="baseline-days">—</span> <span id="baseline-wd">working days</span>.<br>
+              <span class="muted" id="baseline-gd-note" style="display:none">This is pre-production only (GDD + control file).</span></span>
+          </div>
+          <!-- Phase 3 baseline + P2 compare -->
+          <div class="compare" id="compare-box" style="display:none">
+            <div class="box"><div class="n" id="cmp-base">—</div><div class="t" id="cmp-base-t">baseline</div></div>
+            <div class="box"><div class="n" id="cmp-p2">—</div><div class="t" id="cmp-p2-t">Phase 2</div></div>
+          </div>
+
+          <div class="field">
+            <label class="lbl" for="f-est"><span id="lbl-est">Your estimate</span> <span class="req">*</span><span class="tip" id="wd-tip" title="">i</span></label>
+            <p class="help" id="help-est">How many working days do you need for your discipline on this game?</p>
+            <input type="number" id="f-est" min="0" step="0.5" oninput="onEstimate()" placeholder="—">
+          </div>
+          <div class="delta-note" id="delta-note"></div>
+          <div class="field" id="reason-field" style="display:none">
+            <label class="lbl" for="f-reason"><span id="lbl-reason">Why is it different?</span> <span class="req">*</span></label>
+            <p class="help" id="help-reason">One sentence is plenty.</p>
+            <textarea id="f-reason"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- PHASE 2 extra cards -->
+      <div id="p2-extra" style="display:none">
+        <div class="card">
+          <div class="field">
+            <label class="lbl" id="lbl-reuse">What can you reuse from a past game?</label>
+            <p class="help" id="help-reuse">Add a row for anything you can clone or adapt instead of building fresh. Add as many as you like.</p>
+            <div id="reuse-rows"></div>
+            <button type="button" class="btn btn-ghost addbtn" onclick="addReuseRow()" id="btn-reuseadd">+ Add</button>
+          </div>
+          <div class="field">
+            <label class="lbl" id="lbl-risk">Anything risky, or that needs rebuilding?</label>
+            <p class="help" id="help-risk">Add a row for each risk, unknown, or part you're unsure about. Add as many as you like.</p>
+            <div id="risk-rows"></div>
+            <button type="button" class="btn btn-ghost addbtn" onclick="addRiskRow()" id="btn-riskadd">+ Add</button>
+          </div>
+        </div>
+
+        <div class="card vfx" id="vfx-block">
+          <label class="lbl" id="lbl-vfxtitle">VFX / Animation — early estimate</label>
+          <p class="help" id="help-vfxintro">Animatics often don't exist this early. Give a safe floor based on a similar past game, and list what still needs animatics before you can size it.</p>
+          <div class="field"><label class="lbl" for="f-vfx-comp" id="lbl-vfxcomp">Comparable past game</label><input type="text" id="f-vfx-comp"></div>
+          <div class="field"><label class="lbl" for="f-vfx-compdays" id="lbl-vfxcompdays">Its actual VFX/Anim days</label><input type="number" id="f-vfx-compdays" min="0" step="0.5"></div>
+          <div class="field"><label class="lbl" for="f-vfx-why" id="lbl-vfxwhy">Why that floor is defensible</label><textarea id="f-vfx-why"></textarea></div>
+          <div class="field">
+            <label class="lbl" id="lbl-vfxtbd">Things that still need animatics to size</label>
+            <p class="help" id="help-vfxtbd">List each element, how big you suspect it is, and what you'd need to size it.</p>
+            <div id="tbd-rows"></div>
+            <button type="button" class="btn btn-ghost" style="font-size:13px;padding:7px 14px" onclick="addTbdRow()" id="btn-vfxadd">+ Add element</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <label class="lbl" id="lbl-notready">Not ready to give a number?</label>
+          <p class="help" id="help-notready">Both of these are normal and expected. You can still submit.</p>
+          <div class="toggle-row"><input type="checkbox" id="chk-invest" onchange="toggleSub('invest')"><label for="chk-invest" id="lbl-investlbl">I need to look into something first (e.g. read old code, check assets).</label></div>
+          <div class="sub" id="sub-invest">
+            <div class="field"><label class="lbl" for="f-invest" id="lbl-investwhat">What do you need to look into?</label><p class="help" id="help-investnote">There's about 2 working days set aside for this across the team.</p><textarea id="f-invest"></textarea></div>
+          </div>
+          <div class="toggle-row"><input type="checkbox" id="chk-lacks" onchange="toggleSub('lacks')"><label for="chk-lacks" id="lbl-lackslbl">The pitch is missing detail I need.</label></div>
+          <div class="sub" id="sub-lacks">
+            <div class="field"><label class="lbl" for="f-missing" id="lbl-lackswhat">What's missing?</label><textarea id="f-missing"></textarea></div>
+            <div class="field"><label class="lbl" for="f-assumed" id="lbl-lacksassumed">What did you assume for now?</label><textarea id="f-assumed"></textarea></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PHASE 3 extra cards -->
+      <div id="p3-extra" style="display:none">
+        <div class="card" id="p3-risks-card" style="display:none">
+          <label class="lbl" id="lbl-p3risks">Risks raised in Phase 2</label>
+          <p class="help" id="help-p3risks">Keep these in mind as you reconcile.</p>
+          <ul id="p3-risks-list" style="margin:0;padding-left:20px;color:var(--ink2)"></ul>
+        </div>
+        <div class="card">
+          <label class="lbl"><span id="lbl-p3changedt">What changed since Phase 2?</span> <span class="req" id="p3changed-req" style="display:none">*</span></label>
+          <p class="help" id="help-p3changed">Now that the GDD and art exist — what's different from your earlier estimate?</p>
+          <textarea id="f-p3changed"></textarea>
+        </div>
+        <div class="card">
+          <label class="lbl" id="lbl-p3tbd">Resolve your open questions from Phase 2</label>
+          <p class="help" id="help-p3tbd">For each thing you couldn't size in Phase 2, mark how it's resolved now.</p>
+          <div id="tbd3-rows"></div>
+          <button type="button" class="btn btn-ghost" style="font-size:13px;padding:7px 14px" onclick="addTbd3Row()" id="btn-p3tbdadd">+ Add item</button>
+        </div>
+        <div class="card">
+          <label class="lbl" id="lbl-p3plat">Platform feasibility</label>
+          <p class="help" id="help-p3plat">For each target platform: can the game ship as designed? (Usually agreed with your producer.)</p>
+          <div id="plat-rows"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="field"><label class="lbl" for="f-name"><span id="lbl-name">Your name</span> <span class="req">*</span></label><input type="text" id="f-name"></div>
+        <div class="success-banner" id="success-banner"></div>
+        <div class="actions"><button class="btn btn-primary" onclick="submitForm()" id="btn-submit">Submit</button><span class="status" id="status"></span></div>
+        <div class="result" id="result">
+          <p class="muted" id="result-help">No live connection set — copy this and send it to your producer:</p>
+          <pre id="result-json"></pre>
+          <button class="btn btn-ghost" style="font-size:13px;padding:7px 14px" onclick="copyJson()" id="btn-copy">Copy</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- GUIDE TAB -->
+  <div class="pane guide" id="pane-guide"></div>
+  <!-- PROCESS TAB -->
+  <div class="pane proc" id="pane-proc"></div>
+</div>
+
+<script>
+// ── i18n ──────────────────────────────────────────────────────────────
+var I18N = {
+  en: {
+    kicker:"Scoping", tab_form_1:"Your read", tab_form_2:"Your estimate", tab_form_3:"Reconcile",
+    tab_guide:"How this works", tab_proc:"The process", pitch_link:"View the pitch",
+    pitch_for:"Pitch for: ", p3_risks_title:"Risks raised in Phase 2", p3_risks_help:"Keep these in mind as you reconcile.",
+    your_discipline:"Your discipline", your_discipline_help:"Pick the part of the game you're estimating.",
+    baseline_pre:"Typical for", working_days:"working days",
+    gd_note_short:"This is pre-production only (GDD + control file).",
+    your_estimate:"Your estimate", your_estimate_help:"How many working days do you need for your discipline on this game?",
+    wd_tip:"A working day is just a normal day of focused work. Don't subtract holidays or time off — we handle that separately.",
+    reason:"Why is it different?", reason_help:"One sentence is plenty. Higher or lower is fine — we just want to understand.",
+    reuse:"What can you reuse from a past game?", reuse_help:"Add a row for anything you can clone or adapt instead of building fresh. Add as many as you like.",
+    reuse_what_ph:"What you can reuse", reuse_game_ph:"From which game? (optional)",
+    risk:"Anything risky, or that needs rebuilding?", risk_help:"Add a row for each risk, unknown, or part you're unsure about. Add as many as you like.",
+    risk_ph:"Describe the risk", add_btn:"+ Add", del_item:"Remove",
+    vfx_title:"VFX / Animation — early estimate",
+    vfx_intro:"Animatics often don't exist this early. Give a safe floor based on a similar past game, and list what still needs animatics before you can size it.",
+    vfx_comp:"Comparable past game", vfx_compdays:"Its actual VFX/Anim days", vfx_why:"Why that floor is defensible",
+    vfx_tbd:"Things that still need animatics to size", vfx_tbd_help:"List each element, how big you suspect it is, and what you'd need to size it.",
+    vfx_add:"+ Add element", tbd_element:"Element", tbd_needs:"What's needed to size it",
+    notready_title:"Not ready to give a number?", notready_help:"Both of these are normal and expected. You can still submit.",
+    invest_label:"I need to look into something first (e.g. read old code, check assets).",
+    invest_what:"What do you need to look into?", invest_note:"There's about 2 working days set aside for this across the team.",
+    lacks_label:"The pitch is missing detail I need.", lacks_what:"What's missing?", lacks_assumed:"What did you assume for now?",
+    your_name:"Your name", submit:"Submit", copy:"Copy",
+    result_help:"No live connection set — copy this and send it to your producer:",
+    success:"Thank you! Your input was sent.", err_disc:"Please pick your discipline.",
+    err_est:"Please enter an estimate (in working days).", err_reason:"Please add a quick reason for the difference.",
+    err_name:"Please add your name.", err_p1:"Please give a rough size read.",
+    delta_more:"That's {n} day(s) MORE than {ref} — tell us why below.",
+    delta_less:"That's {n} day(s) FEWER than {ref} — tell us why below.",
+    ref_typical:"typical", ref_p2:"your Phase 2 estimate",
+    exempt:"This game type ({type}) is exempt from scoping — the baseline is the scope. Nothing to submit here.",
+    size_s:"Small", size_m:"Medium", size_l:"Large",
+    // Phase 1
+    p1_intro:"This is a quick gut read in the pitch meeting — about 5 minutes, not a commitment. Real day estimates come later in Phase 2.",
+    p1_size:"Rough size vs. typical", p1_size_help:"Just a gut read — no day counts needed.",
+    p1_smaller:"Smaller", p1_about:"About right", p1_bigger:"Bigger", p1_unsure:"Can't tell yet",
+    p1_flags:"Flags (check any that apply)",
+    p1_fb:"Looks like a standard build", p1_fr:"I see risks worth flagging", p1_fi:"Needs investigation before it can be sized",
+    p1_notes:"Notes",
+    p2_intro:"Give a working-day estimate for your discipline on this game. This is the number the greenlight decision is based on — your best read today is what we need.",
+    // Phase 3
+    p3_intro:"Now that the GDD and art exist, update your estimate. This is the final number before we lock the schedule.",
+    cmp_base:"baseline", cmp_p2:"Phase 2",
+    p3_est:"Your updated estimate", p3_est_help:"Your best number now that you've seen the GDD and art.",
+    p3_changed:"What changed since Phase 2?", p3_changed_help:"Now that the GDD and art exist — what's different from your earlier estimate?",
+    p3_tbd:"Resolve your open questions from Phase 2", p3_tbd_help:"For each thing you couldn't size in Phase 2, mark how it's resolved now.",
+    p3_tbd_add:"+ Add item", p3_res_sized:"Sized", p3_res_tbd:"Still TBD", p3_res_no:"Not needed",
+    p3_tbd_item:"Item from Phase 2", p3_tbd_note:"Note / estimate",
+    p3_plat:"Platform feasibility", p3_plat_help:"For each target platform: can the game ship as designed? (Usually agreed with your producer.)",
+    plat_ok:"Feasible", plat_adapt:"With changes", plat_no:"Not feasible",
+    // Guide (phase-specific short help)
+    g1_h1:"What is this?", g1_p1:"In the pitch meeting, each discipline lead gives a <b>quick gut read</b> on a new pitch. It takes about 5 minutes per pitch.",
+    g1_h2:"What we're asking", g1_p2:"Two things: a <b>rough size</b> (smaller / about right / bigger than a typical game of this type), and any <b>flags</b> you want to raise. No day numbers yet — those come in Phase 2.",
+    g1_h3:"The flags", g1_p3:"Check any that apply. They all carry forward to Phase 2, so nothing gets lost:",
+    g1_li1:"<b>Standard build</b> — looks like a normal one, nothing unusual.",
+    g1_li2:"<b>Risks</b> — something you'd want the team to watch.",
+    g1_li3:"<b>Needs investigation</b> — we can't really size it until someone digs in.",
+    g2_h1:"What is this?", g2_p1:"We're sizing a new game before we commit to building it. You're giving a rough estimate for <b>your part only</b>.",
+    g2_h2:"What we're asking", g2_p2:"How many <b>working days</b> you'd need for your discipline on this game. A working day is a normal day of focused work — don't subtract holidays or time off, we handle that separately.",
+    g2_h3:"If your number differs from the typical", g2_p3:"That's completely fine. Just tell us why in a sentence — more or less, we only want to understand the game better.",
+    g2_h4:"If you can't give a number yet", g2_p4:"Two normal outcomes, and you can still submit:",
+    g2_li1:"<b>You need to investigate</b> — say what you need to look at. There's ~2 working days set aside across the team.",
+    g2_li2:"<b>The pitch is missing detail</b> — say what's missing and what you assumed for now.",
+    g2_h5:"VFX / Animation", g2_p5:"Animatics usually don't exist this early. Give a safe <b>floor</b> based on a similar past game, and list what still needs animatics before it can be sized. You won't be held to a guess made without animatics.",
+    g2_h6:"A note for Game Design", g2_p6:"Your estimate is <b>pre-production only</b> — writing the GDD and getting the control file ready to unblock the engineer. The ongoing work you do later during production is assumed; don't include it here.",
+    g3_h1:"What is this?", g3_p1:"The art and GDD now exist, so we re-check the scope one last time before locking the schedule. This is the <b>final</b> number.",
+    g3_h2:"What we're asking", g3_p2:"Update your Phase 2 estimate based on what you can now see. If it changed, tell us why. Then close out the open questions you flagged in Phase 2.",
+    g3_h3:"Open questions", g3_p3:"For each thing you couldn't size before, mark it <b>Sized</b> (you've folded it into your number), <b>Still TBD</b> (carrying a known risk), or <b>Not needed</b> (no longer in scope).",
+    g3_h4:"Platform feasibility", g3_p4:"A quick read on whether the game can ship as designed on each target platform — usually agreed with your producer in the session.",
+    // Process overview (all phases)
+    pr_intro:"Here's how we size a pitch from first look to a locked schedule. You'll only ever fill a short form — the heavy lifting happens behind the scenes.",
+    pr_p1_h:"Phase 1 · Pitch meeting", pr_p1_who:"Discipline leads · ~5 min",
+    pr_p1_b:"A quick gut read on the pitch: rough size and any flags. Not a commitment — just a first signal.",
+    pr_p2_h:"Phase 2 · Pre-greenlight estimate", pr_p2_who:"Assigned team · session + up to 2 days",
+    pr_p2_b:"Each discipline gives a working-day estimate, notes what it can reuse, and flags anything risky or that needs investigating. This is what the greenlight decision is based on.",
+    pr_p3_h:"Phase 3 · After art is locked", pr_p3_who:"Assigned team + leads · mandatory",
+    pr_p3_b:"Once the GDD and animatics exist, we re-check the estimate, resolve any open questions, and lock the schedule. The final, most accurate number.",
+    pr_p4_h:"Phase 4 · Retrospective", pr_p4_who:"Production group",
+    pr_p4_b:"After launch, we compare what we estimated to what actually happened, and tune the typical baselines over time.",
+    pr_foot:"Questions at any point? Ask your producer — they'd rather you ask than guess."
+  },
+  es: {
+    kicker:"Estimación", tab_form_1:"Tu lectura", tab_form_2:"Tu estimación", tab_form_3:"Reconciliar",
+    tab_guide:"Cómo funciona", tab_proc:"El proceso", pitch_link:"Ver el pitch",
+    pitch_for:"Pitch para: ", p3_risks_title:"Riesgos señalados en la Fase 2", p3_risks_help:"Tenlos presentes mientras reconcilias.",
+    your_discipline:"Tu disciplina", your_discipline_help:"Elige la parte del juego que vas a estimar.",
+    baseline_pre:"Habitual para", working_days:"días laborables",
+    gd_note_short:"Esto es solo preproducción (GDD + archivo de control).",
+    your_estimate:"Tu estimación", your_estimate_help:"¿Cuántos días laborables necesitas para tu disciplina en este juego?",
+    wd_tip:"Un día laborable es un día normal de trabajo concentrado. No restes festivos ni tiempo libre — eso lo manejamos aparte.",
+    reason:"¿Por qué es diferente?", reason_help:"Una frase es suficiente. Más o menos está bien — solo queremos entenderlo.",
+    reuse:"¿Qué puedes reutilizar de un juego anterior?", reuse_help:"Añade una fila por cada cosa que puedas clonar o adaptar en vez de crear desde cero. Añade las que quieras.",
+    reuse_what_ph:"Qué puedes reutilizar", reuse_game_ph:"¿De qué juego? (opcional)",
+    risk:"¿Algo arriesgado o que haya que reconstruir?", risk_help:"Añade una fila por cada riesgo, incógnita o parte de la que no estés seguro. Añade las que quieras.",
+    risk_ph:"Describe el riesgo", add_btn:"+ Añadir", del_item:"Quitar",
+    vfx_title:"VFX / Animación — estimación temprana",
+    vfx_intro:"A menudo no hay animáticas tan pronto. Da un mínimo seguro basado en un juego anterior parecido, y enumera lo que necesita animáticas antes de poder dimensionarlo.",
+    vfx_comp:"Juego anterior comparable", vfx_compdays:"Sus días reales de VFX/Anim", vfx_why:"Por qué ese mínimo es defendible",
+    vfx_tbd:"Cosas que aún necesitan animáticas para dimensionar", vfx_tbd_help:"Enumera cada elemento, qué tan grande lo sospechas, y qué necesitarías para dimensionarlo.",
+    vfx_add:"+ Añadir elemento", tbd_element:"Elemento", tbd_needs:"Qué se necesita para dimensionarlo",
+    notready_title:"¿No estás listo para dar un número?", notready_help:"Ambas opciones son normales y esperadas. Aun así puedes enviar.",
+    invest_label:"Necesito investigar algo primero (p. ej. revisar código antiguo, ver recursos).",
+    invest_what:"¿Qué necesitas investigar?", invest_note:"Hay unos 2 días laborables reservados para esto en el equipo.",
+    lacks_label:"Al pitch le falta detalle que necesito.", lacks_what:"¿Qué falta?", lacks_assumed:"¿Qué asumiste por ahora?",
+    your_name:"Tu nombre", submit:"Enviar", copy:"Copiar",
+    result_help:"No hay conexión en vivo — copia esto y envíaselo a tu productor:",
+    success:"¡Gracias! Tu información fue enviada.", err_disc:"Por favor elige tu disciplina.",
+    err_est:"Por favor ingresa una estimación (en días laborables).", err_reason:"Por favor añade un motivo breve de la diferencia.",
+    err_name:"Por favor añade tu nombre.", err_p1:"Por favor da una lectura aproximada de tamaño.",
+    delta_more:"Eso es {n} día(s) MÁS que {ref} — explícanos por qué abajo.",
+    delta_less:"Eso es {n} día(s) MENOS que {ref} — explícanos por qué abajo.",
+    ref_typical:"lo habitual", ref_p2:"tu estimación de la Fase 2",
+    exempt:"Este tipo de juego ({type}) está exento del proceso — la base ES el alcance. No hay nada que enviar aquí.",
+    size_s:"Pequeño", size_m:"Mediano", size_l:"Grande",
+    p1_intro:"Esta es una lectura rápida en la reunión de pitch — unos 5 minutos, no es un compromiso. Las estimaciones reales en días vienen después, en la Fase 2.",
+    p1_size:"Tamaño aproximado vs. lo habitual", p1_size_help:"Solo una impresión — no hacen falta días.",
+    p1_smaller:"Más pequeño", p1_about:"Más o menos igual", p1_bigger:"Más grande", p1_unsure:"Aún no sé",
+    p1_flags:"Señales (marca las que apliquen)",
+    p1_fb:"Parece una construcción estándar", p1_fr:"Veo riesgos que vale la pena señalar", p1_fi:"Necesita investigación antes de dimensionarlo",
+    p1_notes:"Notas",
+    p2_intro:"Da una estimación en días laborables para tu disciplina en este juego. Es el número en el que se basa la decisión de greenlight — tu mejor lectura de hoy es lo que necesitamos.",
+    p3_intro:"Ahora que existen el GDD y el arte, actualiza tu estimación. Este es el número final antes de fijar el cronograma.",
+    cmp_base:"base", cmp_p2:"Fase 2",
+    p3_est:"Tu estimación actualizada", p3_est_help:"Tu mejor número ahora que has visto el GDD y el arte.",
+    p3_changed:"¿Qué cambió desde la Fase 2?", p3_changed_help:"Ahora que existen el GDD y el arte — ¿qué es diferente de tu estimación anterior?",
+    p3_tbd:"Resuelve tus preguntas abiertas de la Fase 2", p3_tbd_help:"Para cada cosa que no pudiste dimensionar en la Fase 2, marca cómo se resuelve ahora.",
+    p3_tbd_add:"+ Añadir ítem", p3_res_sized:"Dimensionado", p3_res_tbd:"Aún pendiente", p3_res_no:"Ya no aplica",
+    p3_tbd_item:"Ítem de la Fase 2", p3_tbd_note:"Nota / estimación",
+    p3_plat:"Viabilidad por plataforma", p3_plat_help:"Para cada plataforma objetivo: ¿puede lanzarse el juego tal como está diseñado? (Normalmente se acuerda con tu productor.)",
+    plat_ok:"Viable", plat_adapt:"Con cambios", plat_no:"No viable",
+    g1_h1:"¿Qué es esto?", g1_p1:"En la reunión de pitch, cada líder de disciplina da una <b>lectura rápida</b> sobre un pitch nuevo. Toma unos 5 minutos por pitch.",
+    g1_h2:"Qué te pedimos", g1_p2:"Dos cosas: un <b>tamaño aproximado</b> (más pequeño / igual / más grande que un juego típico de este tipo), y cualquier <b>señal</b> que quieras levantar. Todavía no hay días — eso viene en la Fase 2.",
+    g1_h3:"Las señales", g1_p3:"Marca las que apliquen. Todas pasan a la Fase 2, así que nada se pierde:",
+    g1_li1:"<b>Construcción estándar</b> — parece normal, nada inusual.",
+    g1_li2:"<b>Riesgos</b> — algo que querrías que el equipo vigile.",
+    g1_li3:"<b>Necesita investigación</b> — no podemos dimensionarlo hasta que alguien lo revise.",
+    g2_h1:"¿Qué es esto?", g2_p1:"Estamos dimensionando un juego nuevo antes de comprometernos a construirlo. Estás dando una estimación aproximada de <b>tu parte únicamente</b>.",
+    g2_h2:"Qué te pedimos", g2_p2:"Cuántos <b>días laborables</b> necesitarías para tu disciplina en este juego. Un día laborable es un día normal de trabajo concentrado — no restes festivos ni tiempo libre, eso lo manejamos aparte.",
+    g2_h3:"Si tu número difiere de lo habitual", g2_p3:"Está perfectamente bien. Solo explícanos por qué en una frase — más o menos, solo queremos entender mejor el juego.",
+    g2_h4:"Si todavía no puedes dar un número", g2_p4:"Dos resultados normales, y aun así puedes enviar:",
+    g2_li1:"<b>Necesitas investigar</b> — di qué necesitas revisar. Hay ~2 días laborables reservados en el equipo.",
+    g2_li2:"<b>Al pitch le falta detalle</b> — di qué falta y qué asumiste por ahora.",
+    g2_h5:"VFX / Animación", g2_p5:"Normalmente no hay animáticas tan pronto. Da un <b>mínimo</b> seguro basado en un juego anterior parecido, y enumera lo que aún necesita animáticas antes de dimensionarlo. No se te exigirá una suposición hecha sin animáticas.",
+    g2_h6:"Una nota para Diseño de Juego", g2_p6:"Tu estimación es <b>solo preproducción</b> — escribir el GDD y dejar listo el archivo de control para desbloquear al ingeniero. El trabajo continuo que haces después se asume; no lo incluyas aquí.",
+    g3_h1:"¿Qué es esto?", g3_p1:"El arte y el GDD ya existen, así que revisamos el alcance una última vez antes de fijar el cronograma. Este es el número <b>final</b>.",
+    g3_h2:"Qué te pedimos", g3_p2:"Actualiza tu estimación de la Fase 2 con lo que ahora puedes ver. Si cambió, dinos por qué. Luego cierra las preguntas abiertas que marcaste en la Fase 2.",
+    g3_h3:"Preguntas abiertas", g3_p3:"Para cada cosa que no pudiste dimensionar antes, márcala <b>Dimensionado</b> (ya está en tu número), <b>Aún pendiente</b> (con un riesgo conocido), o <b>Ya no aplica</b>.",
+    g3_h4:"Viabilidad por plataforma", g3_p4:"Una lectura rápida de si el juego puede lanzarse tal como está diseñado en cada plataforma — normalmente se acuerda con tu productor en la sesión.",
+    pr_intro:"Así dimensionamos un pitch desde el primer vistazo hasta un cronograma fijo. Tú solo llenarás un formulario corto — el trabajo pesado ocurre detrás de escena.",
+    pr_p1_h:"Fase 1 · Reunión de pitch", pr_p1_who:"Líderes de disciplina · ~5 min",
+    pr_p1_b:"Una lectura rápida del pitch: tamaño aproximado y señales. No es un compromiso — solo una primera impresión.",
+    pr_p2_h:"Fase 2 · Estimación pre-greenlight", pr_p2_who:"Equipo asignado · sesión + hasta 2 días",
+    pr_p2_b:"Cada disciplina da una estimación en días laborables, anota qué puede reutilizar, y señala lo arriesgado o lo que necesita investigación. En esto se basa la decisión de greenlight.",
+    pr_p3_h:"Fase 3 · Después de fijar el arte", pr_p3_who:"Equipo asignado + líderes · obligatorio",
+    pr_p3_b:"Una vez que existen el GDD y las animáticas, revisamos la estimación, resolvemos las preguntas abiertas y fijamos el cronograma. El número final y más preciso.",
+    pr_p4_h:"Fase 4 · Retrospectiva", pr_p4_who:"Grupo de producción",
+    pr_p4_b:"Después del lanzamiento, comparamos lo que estimamos con lo que realmente pasó, y ajustamos las bases con el tiempo.",
+    pr_foot:"¿Preguntas en cualquier momento? Pregúntale a tu productor — prefiere que preguntes a que adivines."
+  },
+  vi:{
+    kicker:"Ước tính", tab_form_1:"Đánh giá nhanh", tab_form_2:"Ước tính của bạn", tab_form_3:"Đối chiếu",
+    tab_guide:"Cách hoạt động", tab_proc:"Quy trình", pitch_link:"Xem pitch",
+    pitch_for:"Pitch cho: ", p3_risks_title:"Rủi ro đã nêu ở Giai đoạn 2", p3_risks_help:"Hãy lưu ý những điều này khi đối chiếu.",
+    your_discipline:"Bộ phận của bạn", your_discipline_help:"Chọn phần của trò chơi mà bạn sẽ ước tính.",
+    baseline_pre:"Thông thường cho", working_days:"ngày làm việc",
+    gd_note_short:"Đây chỉ là tiền sản xuất (GDD + tệp điều khiển).",
+    your_estimate:"Ước tính của bạn", your_estimate_help:"Bạn cần bao nhiêu ngày làm việc cho bộ phận của mình trong trò chơi này?",
+    wd_tip:"Một ngày làm việc là một ngày làm việc tập trung bình thường. Đừng trừ ngày lễ hay ngày nghỉ — chúng tôi xử lý riêng.",
+    reason:"Tại sao lại khác?", reason_help:"Một câu là đủ. Nhiều hơn hay ít hơn đều được — chúng tôi chỉ muốn hiểu rõ.",
+    reuse:"Bạn có thể tái sử dụng gì từ trò chơi trước?", reuse_help:"Thêm một dòng cho mỗi thứ bạn có thể sao chép hoặc điều chỉnh thay vì làm mới. Thêm bao nhiêu tùy ý.",
+    reuse_what_ph:"Thứ bạn có thể tái sử dụng", reuse_game_ph:"Từ trò chơi nào? (không bắt buộc)",
+    risk:"Có gì rủi ro hoặc cần xây dựng lại không?", risk_help:"Thêm một dòng cho mỗi rủi ro, điều chưa rõ, hoặc phần bạn không chắc chắn. Thêm bao nhiêu tùy ý.",
+    risk_ph:"Mô tả rủi ro", add_btn:"+ Thêm", del_item:"Xóa",
+    vfx_title:"VFX / Hoạt hình — ước tính sớm",
+    vfx_intro:"Animatic thường chưa có ở giai đoạn này. Hãy đưa ra mức tối thiểu an toàn dựa trên một trò chơi tương tự trước đây, và liệt kê những gì còn cần animatic trước khi định cỡ được.",
+    vfx_comp:"Trò chơi tương tự trước đây", vfx_compdays:"Số ngày VFX/Anim thực tế của nó", vfx_why:"Vì sao mức tối thiểu đó hợp lý",
+    vfx_tbd:"Những thứ vẫn cần animatic để định cỡ", vfx_tbd_help:"Liệt kê từng yếu tố, mức độ lớn bạn dự đoán, và những gì cần để định cỡ nó.",
+    vfx_add:"+ Thêm yếu tố", tbd_element:"Yếu tố", tbd_needs:"Cần gì để định cỡ",
+    notready_title:"Chưa sẵn sàng đưa ra con số?", notready_help:"Cả hai trường hợp đều bình thường và được mong đợi. Bạn vẫn có thể gửi.",
+    invest_label:"Tôi cần xem xét điều gì đó trước (vd: đọc mã cũ, kiểm tra tài nguyên).",
+    invest_what:"Bạn cần xem xét điều gì?", invest_note:"Có khoảng 2 ngày làm việc dành cho việc này trong cả nhóm.",
+    lacks_label:"Pitch thiếu chi tiết mà tôi cần.", lacks_what:"Thiếu những gì?", lacks_assumed:"Bạn đã giả định gì cho hiện tại?",
+    your_name:"Tên của bạn", submit:"Gửi", copy:"Sao chép",
+    result_help:"Chưa thiết lập kết nối trực tiếp — sao chép phần này và gửi cho nhà sản xuất của bạn:",
+    success:"Cảm ơn bạn! Thông tin của bạn đã được gửi.", err_disc:"Vui lòng chọn bộ phận của bạn.",
+    err_est:"Vui lòng nhập ước tính (theo ngày làm việc).", err_reason:"Vui lòng thêm lý do ngắn gọn cho sự khác biệt.",
+    err_name:"Vui lòng thêm tên của bạn.", err_p1:"Vui lòng đưa ra đánh giá kích cỡ sơ bộ.",
+    delta_more:"Đó là {n} ngày NHIỀU HƠN {ref} — hãy cho biết lý do bên dưới.",
+    delta_less:"Đó là {n} ngày ÍT HƠN {ref} — hãy cho biết lý do bên dưới.",
+    ref_typical:"mức thông thường", ref_p2:"ước tính Giai đoạn 2 của bạn",
+    exempt:"Loại trò chơi này ({type}) được miễn quy trình — mức cơ bản CHÍNH LÀ phạm vi. Không có gì để gửi ở đây.",
+    size_s:"Nhỏ", size_m:"Trung bình", size_l:"Lớn",
+    p1_intro:"Đây là đánh giá nhanh trong buổi họp pitch — khoảng 5 phút, không phải cam kết. Ước tính số ngày thực sự sẽ đến sau, ở Giai đoạn 2.",
+    p1_size:"Kích cỡ sơ bộ so với thông thường", p1_size_help:"Chỉ là cảm nhận — không cần số ngày.",
+    p1_smaller:"Nhỏ hơn", p1_about:"Khoảng bằng", p1_bigger:"Lớn hơn", p1_unsure:"Chưa rõ",
+    p1_flags:"Cờ đánh dấu (chọn những gì phù hợp)",
+    p1_fb:"Trông giống một bản dựng tiêu chuẩn", p1_fr:"Tôi thấy có rủi ro đáng lưu ý", p1_fi:"Cần điều tra trước khi định cỡ",
+    p1_notes:"Ghi chú",
+    p2_intro:"Đưa ra ước tính số ngày làm việc cho bộ phận của bạn trong trò chơi này. Đây là con số mà quyết định greenlight dựa vào — đánh giá tốt nhất hôm nay của bạn là điều chúng tôi cần.",
+    cmp_base:"cơ bản", cmp_p2:"Giai đoạn 2",
+    p3_intro:"Giờ đã có GDD và phần mỹ thuật, hãy cập nhật ước tính của bạn. Đây là con số cuối cùng trước khi chốt lịch.",
+    p3_est:"Ước tính cập nhật của bạn", p3_est_help:"Con số tốt nhất của bạn sau khi đã xem GDD và mỹ thuật.",
+    p3_changed:"Điều gì đã thay đổi so với Giai đoạn 2?", p3_changed_help:"Giờ đã có GDD và mỹ thuật — có gì khác so với ước tính trước đây của bạn?",
+    p3_tbd:"Giải quyết các câu hỏi còn mở từ Giai đoạn 2", p3_tbd_help:"Với mỗi điều bạn chưa định cỡ được ở Giai đoạn 2, đánh dấu cách giải quyết hiện tại.",
+    p3_tbd_add:"+ Thêm mục", p3_res_sized:"Đã định cỡ", p3_res_tbd:"Vẫn chưa xác định", p3_res_no:"Không còn cần",
+    p3_tbd_item:"Mục từ Giai đoạn 2", p3_tbd_note:"Ghi chú / ước tính",
+    p3_plat:"Khả năng khả thi theo nền tảng", p3_plat_help:"Với mỗi nền tảng mục tiêu: trò chơi có thể phát hành như thiết kế không? (Thường thống nhất với nhà sản xuất của bạn.)",
+    plat_ok:"Khả thi", plat_adapt:"Cần điều chỉnh", plat_no:"Không khả thi",
+    g1_h1:"Đây là gì?", g1_p1:"Trong buổi họp pitch, mỗi trưởng bộ phận đưa ra <b>đánh giá nhanh</b> về một pitch mới. Mất khoảng 5 phút cho mỗi pitch.",
+    g1_h2:"Chúng tôi hỏi gì", g1_p2:"Hai điều: một <b>kích cỡ sơ bộ</b> (nhỏ hơn / khoảng bằng / lớn hơn một trò chơi điển hình cùng loại), và bất kỳ <b>cờ đánh dấu</b> nào bạn muốn nêu. Chưa có số ngày — điều đó đến ở Giai đoạn 2.",
+    g1_h3:"Các cờ đánh dấu", g1_p3:"Chọn những gì phù hợp. Tất cả đều được chuyển sang Giai đoạn 2, nên không có gì bị bỏ sót:",
+    g1_li1:"<b>Bản dựng tiêu chuẩn</b> — trông bình thường, không có gì bất thường.",
+    g1_li2:"<b>Rủi ro</b> — điều bạn muốn nhóm theo dõi.",
+    g1_li3:"<b>Cần điều tra</b> — không thể định cỡ cho đến khi ai đó tìm hiểu kỹ.",
+    g2_h1:"Đây là gì?", g2_p1:"Chúng tôi đang định cỡ một trò chơi mới trước khi cam kết xây dựng nó. Bạn đang đưa ra ước tính sơ bộ cho <b>chỉ phần của bạn</b>.",
+    g2_h2:"Chúng tôi hỏi gì", g2_p2:"Bạn cần bao nhiêu <b>ngày làm việc</b> cho bộ phận của mình trong trò chơi này. Một ngày làm việc là một ngày làm việc tập trung bình thường — đừng trừ ngày lễ hay ngày nghỉ, chúng tôi xử lý riêng.",
+    g2_h3:"Nếu con số của bạn khác với mức thông thường", g2_p3:"Hoàn toàn ổn. Chỉ cần cho chúng tôi biết lý do trong một câu — nhiều hơn hay ít hơn, chúng tôi chỉ muốn hiểu trò chơi rõ hơn.",
+    g2_h4:"Nếu bạn chưa thể đưa ra con số", g2_p4:"Hai kết quả bình thường, và bạn vẫn có thể gửi:",
+    g2_li1:"<b>Bạn cần điều tra</b> — nói rõ bạn cần xem gì. Có ~2 ngày làm việc dành cho cả nhóm.",
+    g2_li2:"<b>Pitch thiếu chi tiết</b> — nói rõ thiếu gì và bạn giả định gì cho hiện tại.",
+    g2_h5:"VFX / Hoạt hình", g2_p5:"Animatic thường chưa có ở giai đoạn này. Hãy đưa ra <b>mức tối thiểu</b> an toàn dựa trên một trò chơi tương tự trước đây, và liệt kê những gì còn cần animatic trước khi định cỡ. Bạn sẽ không bị ràng buộc bởi một phỏng đoán đưa ra khi chưa có animatic.",
+    g2_h6:"Lưu ý cho Thiết kế Trò chơi (GD)", g2_p6:"Ước tính của bạn chỉ là <b>tiền sản xuất</b> — viết GDD và chuẩn bị tệp điều khiển để mở khóa cho kỹ sư. Công việc liên tục bạn làm sau này trong quá trình sản xuất được mặc định tính; đừng đưa vào đây.",
+    g3_h1:"Đây là gì?", g3_p1:"Phần mỹ thuật và GDD đã có, nên chúng ta kiểm tra lại phạm vi một lần cuối trước khi chốt lịch. Đây là con số <b>cuối cùng</b>.",
+    g3_h2:"Chúng tôi hỏi gì", g3_p2:"Cập nhật ước tính Giai đoạn 2 của bạn dựa trên những gì bạn thấy bây giờ. Nếu thay đổi, hãy cho biết lý do. Sau đó giải quyết các câu hỏi còn mở mà bạn đã nêu ở Giai đoạn 2.",
+    g3_h3:"Câu hỏi còn mở", g3_p3:"Với mỗi điều bạn chưa định cỡ được trước đây, đánh dấu <b>Đã định cỡ</b> (đã gộp vào con số của bạn), <b>Vẫn chưa xác định</b> (đang mang một rủi ro đã biết), hoặc <b>Không còn cần</b> (không còn trong phạm vi).",
+    g3_h4:"Khả năng khả thi theo nền tảng", g3_p4:"Đánh giá nhanh về việc trò chơi có thể phát hành như thiết kế trên mỗi nền tảng mục tiêu hay không — thường thống nhất với nhà sản xuất trong buổi họp.",
+    pr_intro:"Đây là cách chúng tôi định cỡ một pitch từ cái nhìn đầu tiên đến lịch trình được chốt. Bạn chỉ cần điền một biểu mẫu ngắn — phần việc nặng diễn ra phía sau.",
+    pr_p1_h:"Giai đoạn 1 · Họp pitch", pr_p1_who:"Trưởng bộ phận · ~5 phút",
+    pr_p1_b:"Đánh giá nhanh về pitch: kích cỡ sơ bộ và các cờ đánh dấu. Không phải cam kết — chỉ là tín hiệu đầu tiên.",
+    pr_p2_h:"Giai đoạn 2 · Ước tính trước greenlight", pr_p2_who:"Nhóm được giao · buổi họp + tối đa 2 ngày",
+    pr_p2_b:"Mỗi bộ phận đưa ra ước tính ngày làm việc, ghi chú những gì có thể tái sử dụng, và nêu bất cứ điều gì rủi ro hoặc cần điều tra. Quyết định greenlight dựa trên điều này.",
+    pr_p3_h:"Giai đoạn 3 · Sau khi chốt mỹ thuật", pr_p3_who:"Nhóm được giao + trưởng bộ phận · bắt buộc",
+    pr_p3_b:"Khi đã có GDD và animatic, chúng ta kiểm tra lại ước tính, giải quyết các câu hỏi còn mở, và chốt lịch. Con số cuối cùng và chính xác nhất.",
+    pr_p4_h:"Giai đoạn 4 · Tổng kết", pr_p4_who:"Nhóm sản xuất",
+    pr_p4_b:"Sau khi phát hành, chúng tôi so sánh những gì đã ước tính với thực tế, và điều chỉnh các mức cơ bản theo thời gian.",
+    pr_foot:"Có câu hỏi bất cứ lúc nào? Hãy hỏi nhà sản xuất của bạn — họ thích bạn hỏi hơn là đoán."
+  }
+};
+
+// ── Baselines (prototype mirror of the tool's Scope Templates; GD = pre-prod) ──
+var BASELINES = {
+  'Huge Game':{GD:20,Art:90,BEE:60,FEE:90,TA:90,VFX:90,QA:15,BEEp:60,FEEp:60,TAp:60,VFXp:60,QAp:15},
+  'Original' :{GD:20,Art:80,BEE:40,FEE:65,TA:60,VFX:65,QA:10,BEEp:40,FEEp:40,TAp:40,VFXp:40,QAp:10},
+  'N+1'      :{GD:15,Art:70,BEE:20,FEE:40,TA:50,VFX:50,QA:10,BEEp:30,FEEp:30,TAp:30,VFXp:30,QAp:10},
+  'N+2'      :{GD:20,Art:75,BEE:30,FEE:50,TA:55,VFX:55,QA:10,BEEp:35,FEEp:35,TAp:35,VFXp:35,QAp:10},
+  'Reskin'   :{GD:3, Art:60,BEE:1, FEE:5, TA:40,VFX:50,QA:5, BEEp:1, FEEp:1, TAp:20,VFXp:20,QAp:5},
+  'Sequel'   :{GD:10,Art:40,BEE:20,FEE:30,TA:25,VFX:30,QA:10,BEEp:20,FEEp:20,TAp:15,VFXp:15,QAp:5},
+  'Variant'  :{GD:5, Art:25,BEE:15,FEE:10,TA:10,VFX:10,QA:5, BEEp:15,FEEp:15,TAp:10,VFXp:10,QAp:5},
+  'Seasonal' :{GD:2, Art:15,BEE:1, FEE:1, TA:10,VFX:10,QA:5, BEEp:1, FEEp:1, TAp:5, VFXp:5, QAp:5},
+  'IGT'      :{GD:20,Art:15,BEE:40,FEE:65,TA:65,VFX:65,QA:15,BEEp:40,FEEp:40,TAp:40,VFXp:40,QAp:15},
+  'KMS Port' :{GD:1, Art:1, BEE:5, FEE:1, TA:1, VFX:1, QA:10,BEEp:40,FEEp:40,TAp:40,VFXp:40,QAp:15},
+  'TWZ Port' :{GD:3, Art:4, BEE:4, FEE:5, TA:5, VFX:0, QA:0, BEEp:0, FEEp:0, TAp:0, VFXp:0, QAp:0}
+};
+var FULL_TYPES = ['Huge Game','Original','N+1','N+2','Sequel','IGT'];
+var LITE_TYPES = ['Reskin','Variant','Seasonal'];
+var EXEMPT_TYPES = ['KMS Port','TWZ Port'];
+var DISC_LABEL = {GD:'GD (pre-prod)',Art:'Art',BEE:'BEE',FEE:'FEE',TA:'TA',VFX:'VFX'};
+var DISC_LABEL_GEAR = {BEEp:'BEE · Gear',FEEp:'FEE · Gear',TAp:'TA · Gear',VFXp:'VFX · Gear'};
+var APP_LABEL = {MVM:'MVM',TWZ:'TWZ',Crown:'Crown',Pop:'Pop'};
+
+function qp(k,d){var v=new URLSearchParams(location.search).get(k);return v==null?d:v;}
+var P = {
+  pitch: qp('pitch','totem-torch'), game: qp('game','Totem Torch'),
+  gameOf: qp('gameOf','Magic Treasure Volcano'), type: qp('type','Original'),
+  apps: qp('apps','MVM').split(',').map(function(s){return s.trim();}).filter(Boolean),
+  disc: qp('disc',''), phase: qp('phase','2'),
+  p2: qp('p2',''),   // Phase 3: the Phase 2 estimate for this discipline (number)
+  // Phase 3 carry-forward from Phase 2 (the tool fills these when it generates
+  // the link). '||'-separated. open = unresolved questions to close out;
+  // flagged = risks raised, shown read-only for awareness.
+  open: qp('open',''), flagged: qp('flagged',''),
+  lang: qp('lang','en'),
+  pitchUrl: qp('pitchUrl','https://playstudios.atlassian.net/wiki/spaces/MVM/pages/17988812818/Totem+Torch+Treasures'),
+  webhook: qp('webhook','')
+};
+var PHASE = (P.phase==='1'||P.phase==='3')?P.phase:'2';
+var LANG = (['es','vi'].indexOf(P.lang)>=0)?P.lang:'en';
+function t(k){return (I18N[LANG] && I18N[LANG][k]) || I18N.en[k] || k;}
+
+function disciplinesFor(type, apps){
+  var out=[]; if(EXEMPT_TYPES.indexOf(type)>=0) return out;
+  var ssKeys = (LITE_TYPES.indexOf(type)>=0) ? ['FEE','TA','VFX'] : ['GD','Art','BEE','FEE','TA','VFX'];
+  var needsSS = apps.some(function(a){return a==='MVM'||a==='TWZ'||a==='Crown';});
+  var needsGear = apps.indexOf('Pop')>=0;
+  if(needsSS||!needsGear) ssKeys.forEach(function(k){out.push({key:k,side:'SS',label:DISC_LABEL[k]});});
+  if(needsGear){
+    var g=(LITE_TYPES.indexOf(type)>=0)?['FEEp','TAp','VFXp']:['BEEp','FEEp','TAp','VFXp'];
+    g.forEach(function(k){out.push({key:k,side:'Gear',label:DISC_LABEL_GEAR[k]});});
+  }
+  return out;
+}
+function baselineFor(type,k){var r=BASELINES[type];return r?r[k]:null;}
+function isVfx(k){return k==='VFX'||k==='VFXp';}
+function isGd(k){return k==='GD';}
+
+// ── Rendering ──
+function applyI18n(){
+  document.documentElement.lang = LANG;
+  document.getElementById('lang-en').classList.toggle('on',LANG==='en');
+  document.getElementById('lang-es').classList.toggle('on',LANG==='es');
+  document.getElementById('lang-vi').classList.toggle('on',LANG==='vi');
+  if(P.gameOf) setText('sub-name', t('pitch_for')+P.gameOf);
+  document.getElementById('kicker').textContent = t('kicker');
+  document.getElementById('tab-form-label').textContent = t('tab_form_'+PHASE);
+  document.getElementById('tab-guide-label').textContent = t('tab_guide');
+  document.getElementById('tab-proc-label').textContent = t('tab_proc');
+  document.getElementById('pitch-link-label').textContent = t('pitch_link');
+  // shared labels
+  setText('lbl-disc',t('your_discipline')); setText('help-disc',t('your_discipline_help'));
+  setText('baseline-pre',t('baseline_pre')); setText('baseline-wd',t('working_days'));
+  setText('baseline-gd-note',t('gd_note_short'));
+  setHtml('phase-intro', t('p'+PHASE+'_intro'));
+  // numeric (P2/P3)
+  setText('lbl-est', PHASE==='3'? t('p3_est') : t('your_estimate'));
+  setText('help-est', PHASE==='3'? t('p3_est_help') : t('your_estimate_help'));
+  document.getElementById('wd-tip').title = t('wd_tip');
+  setText('lbl-reason', t('reason'));
+  setText('help-reason', t('reason_help'));
+  setText('cmp-base-t',t('cmp_base')); setText('cmp-p2-t',t('cmp_p2'));
+  // P2 extras
+  setText('lbl-reuse',t('reuse')); setText('help-reuse',t('reuse_help'));
+  setText('lbl-risk',t('risk')); setText('help-risk',t('risk_help'));
+  setText('lbl-vfxtitle',t('vfx_title')); setText('help-vfxintro',t('vfx_intro'));
+  setText('lbl-vfxcomp',t('vfx_comp')); setText('lbl-vfxcompdays',t('vfx_compdays'));
+  setText('lbl-vfxwhy',t('vfx_why')); setText('lbl-vfxtbd',t('vfx_tbd')); setText('help-vfxtbd',t('vfx_tbd_help'));
+  setText('btn-vfxadd',t('vfx_add'));
+  setText('lbl-notready',t('notready_title')); setText('help-notready',t('notready_help'));
+  setText('lbl-investlbl',t('invest_label')); setText('lbl-investwhat',t('invest_what')); setText('help-investnote',t('invest_note'));
+  setText('lbl-lackslbl',t('lacks_label')); setText('lbl-lackswhat',t('lacks_what')); setText('lbl-lacksassumed',t('lacks_assumed'));
+  // P1
+  setText('lbl-p1size',t('p1_size')); setText('help-p1size',t('p1_size_help'));
+  setText('lbl-p1flags',t('p1_flags'));
+  setText('lbl-p1fb',t('p1_fb')); setText('lbl-p1fr',t('p1_fr')); setText('lbl-p1fi',t('p1_fi'));
+  setText('lbl-p1notes',t('p1_notes'));
+  // P3
+  setText('lbl-p3changedt',t('p3_changed')); setText('help-p3changed',t('p3_changed_help'));
+  setText('lbl-p3tbd',t('p3_tbd')); setText('help-p3tbd',t('p3_tbd_help')); setText('btn-p3tbdadd',t('p3_tbd_add'));
+  setText('lbl-p3plat',t('p3_plat')); setText('help-p3plat',t('p3_plat_help'));
+  setText('lbl-p3risks',t('p3_risks_title')); setText('help-p3risks',t('p3_risks_help'));
+  // footer
+  setText('lbl-name',t('your_name')); setText('btn-submit',t('submit'));
+  setText('result-help',t('result_help')); setText('btn-copy',t('copy'));
+  setText('btn-reuseadd',t('add_btn')); setText('btn-riskadd',t('add_btn'));
+  renderGuide(); renderProcess();
+  buildSizeRow(); rebuildTbdHeaders(); retranslateRows();
+  onEstimate();
+}
+function setText(id,v){var e=document.getElementById(id); if(e) e.textContent=v;}
+function setHtml(id,v){var e=document.getElementById(id); if(e) e.innerHTML=v;}
+
+function renderGuide(){
+  var g=document.getElementById('pane-guide'); var h='';
+  if(PHASE==='1'){
+    h+='<h2>'+t('g1_h1')+'</h2><p>'+t('g1_p1')+'</p>';
+    h+='<h2>'+t('g1_h2')+'</h2><p>'+t('g1_p2')+'</p>';
+    h+='<h2>'+t('g1_h3')+'</h2><p>'+t('g1_p3')+'</p><ul><li>'+t('g1_li1')+'</li><li>'+t('g1_li2')+'</li><li>'+t('g1_li3')+'</li></ul>';
+  } else if(PHASE==='3'){
+    h+='<h2>'+t('g3_h1')+'</h2><p>'+t('g3_p1')+'</p>';
+    h+='<h2>'+t('g3_h2')+'</h2><p>'+t('g3_p2')+'</p>';
+    h+='<h2>'+t('g3_h3')+'</h2><p>'+t('g3_p3')+'</p>';
+    h+='<h2>'+t('g3_h4')+'</h2><p>'+t('g3_p4')+'</p>';
+  } else {
+    h+='<h2>'+t('g2_h1')+'</h2><p>'+t('g2_p1')+'</p>';
+    h+='<h2>'+t('g2_h2')+'</h2><p>'+t('g2_p2')+'</p>';
+    h+='<h2>'+t('g2_h3')+'</h2><p>'+t('g2_p3')+'</p>';
+    h+='<h2>'+t('g2_h4')+'</h2><p>'+t('g2_p4')+'</p><ul><li>'+t('g2_li1')+'</li><li>'+t('g2_li2')+'</li></ul>';
+    h+='<h2>'+t('g2_h5')+'</h2><p>'+t('g2_p5')+'</p>';
+    h+='<h2>'+t('g2_h6')+'</h2><div class="callout">'+t('g2_p6')+'</div>';
+  }
+  g.innerHTML=h;
+}
+function renderProcess(){
+  var el=document.getElementById('pane-proc');
+  function card(cls,h,who,b){return '<div class="phase-card '+cls+'"><div class="who">'+who+'</div><h3>'+h+'</h3><p style="margin:0">'+b+'</p></div>';}
+  el.innerHTML='<p>'+t('pr_intro')+'</p>'+
+    card('p1',t('pr_p1_h'),t('pr_p1_who'),t('pr_p1_b'))+
+    card('p2',t('pr_p2_h'),t('pr_p2_who'),t('pr_p2_b'))+
+    card('p3',t('pr_p3_h'),t('pr_p3_who'),t('pr_p3_b'))+
+    card('p4',t('pr_p4_h'),t('pr_p4_who'),t('pr_p4_b'))+
+    '<p class="muted" style="margin-top:14px">'+t('pr_foot')+'</p>';
+}
+function buildSizeRow(){
+  var row=document.getElementById('p1-size-row'); if(!row) return;
+  var opts=[['smaller','p1_smaller'],['about','p1_about'],['bigger','p1_bigger'],['unsure','p1_unsure']];
+  var cur=(row.querySelector('input:checked')||{}).value;
+  row.innerHTML=opts.map(function(o){
+    return '<label><input type="radio" name="p1size" value="'+o[0]+'"'+(cur===o[0]?' checked':'')+'> '+t(o[1])+'</label>';
+  }).join('');
+}
+function buildDiscDropdown(){
+  var sel=document.getElementById('f-disc'); var discs=disciplinesFor(P.type,P.apps);
+  sel.innerHTML='';
+  discs.forEach(function(d){var o=document.createElement('option');o.value=d.key;o.textContent=d.label;o.dataset.side=d.side;sel.appendChild(o);});
+  if(P.disc && discs.some(function(d){return d.key===P.disc;})) sel.value=P.disc;
+}
+function currentDisc(){var s=document.getElementById('f-disc');var o=s.options[s.selectedIndex];return o?{key:o.value,side:o.dataset.side,label:o.textContent}:null;}
+function p2For(discKey){ // Phase 3: the Phase 2 estimate; from ?p2= for the URL disc, else baseline
+  var n=parseFloat(P.p2);
+  if(!isNaN(n) && (!P.disc || P.disc===discKey)) return n;
+  return baselineFor(P.type,discKey);  // demo fallback
+}
+function onDiscChange(){
+  var d=currentDisc(); if(!d) return;
+  var base=baselineFor(P.type,d.key);
+  setText('baseline-n', base==null?'—':base); setText('baseline-days', base==null?'—':base);
+  setText('baseline-type',P.type);
+  document.getElementById('baseline-gd-note').style.display=isGd(d.key)?'inline':'none';
+  document.getElementById('vfx-block').classList.toggle('show', PHASE==='2' && isVfx(d.key));
+  if(PHASE==='3'){
+    setText('cmp-base', base==null?'—':base);
+    setText('cmp-p2', p2For(d.key));
+  }
+  onEstimate();
+}
+function onEstimate(){
+  if(PHASE==='1') return;
+  var d=currentDisc(); if(!d) return;
+  var ref = PHASE==='3'? p2For(d.key) : baselineFor(P.type,d.key);
+  var refLabel = PHASE==='3'? t('ref_p2') : t('ref_typical');
+  var est=parseFloat(document.getElementById('f-est').value);
+  var note=document.getElementById('delta-note'); var rf=document.getElementById('reason-field');
+  var p3req=document.getElementById('p3changed-req');
+  var hasDelta = !(isNaN(est)||ref==null||est===ref);
+  if(!hasDelta){
+    note.classList.remove('show');
+    if(PHASE!=='3') rf.style.display='none';
+    if(p3req) p3req.style.display='none';
+    return;
+  }
+  var diff=Math.round((est-ref)*10)/10;
+  var msg=(diff>0?t('delta_more'):t('delta_less')).replace('{n}',Math.abs(diff)).replace('{ref}',refLabel);
+  note.textContent=msg; note.classList.add('show');
+  // Phase 3 routes the "why" into its always-visible "What changed" card; Phase 2
+  // reveals the inline reason field.
+  if(PHASE==='3'){ if(p3req) p3req.style.display='inline'; }
+  else { rf.style.display='block'; }
+}
+function toggleSub(w){document.getElementById('sub-'+w).classList.toggle('show',document.getElementById('chk-'+w).checked);}
+function showTab(n){
+  ['form','guide','proc'].forEach(function(x){
+    document.querySelector('.tab[data-tab='+x+']').classList.toggle('on',x===n);
+    document.getElementById('pane-'+x).classList.toggle('on',x===n);
+  });
+}
+function setLang(l){LANG=(['es','vi'].indexOf(l)>=0)?l:'en';applyI18n();buildDiscDropdown();onDiscChange();}
+
+function rebuildTbdHeaders(){}
+function addTbdRow(){
+  var w=document.getElementById('tbd-rows');var r=document.createElement('div');r.className='row3';
+  r.innerHTML='<input type="text" class="tbd-el" placeholder="'+t('tbd_element')+'">'+
+    '<select class="tbd-size"><option value="S">'+t('size_s')+'</option><option value="M">'+t('size_m')+'</option><option value="L">'+t('size_l')+'</option></select>'+
+    '<input type="text" class="tbd-needs" placeholder="'+t('tbd_needs')+'">';
+  w.appendChild(r);
+}
+function addTbd3Row(){
+  var w=document.getElementById('tbd3-rows');var r=document.createElement('div');r.className='row3';
+  r.innerHTML='<input type="text" class="t3-item" placeholder="'+t('p3_tbd_item')+'">'+
+    '<select class="t3-res"><option value="sized">'+t('p3_res_sized')+'</option><option value="tbd">'+t('p3_res_tbd')+'</option><option value="no">'+t('p3_res_no')+'</option></select>'+
+    '<input type="text" class="t3-note" placeholder="'+t('p3_tbd_note')+'">';
+  w.appendChild(r);
+}
+function escapeHtml(s){return String(s).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
+// Phase 3: pre-fill the "open questions" list with the items this person flagged
+// in Phase 2 (passed in the link by the tool), and show their raised risks for
+// awareness. '||'-separated values.
+function prefillPhase3Carry(){
+  var open=(P.open||'').split('||').map(function(s){return s.trim();}).filter(Boolean);
+  open.forEach(function(item){
+    addTbd3Row();
+    var rows=document.querySelectorAll('#tbd3-rows .row3');
+    rows[rows.length-1].querySelector('.t3-item').value=item;
+  });
+  var risks=(P.flagged||'').split('||').map(function(s){return s.trim();}).filter(Boolean);
+  if(risks.length){
+    document.getElementById('p3-risks-card').style.display='block';
+    document.getElementById('p3-risks-list').innerHTML=risks.map(function(r){return '<li>'+escapeHtml(r)+'</li>';}).join('');
+  }
+}
+function rowDelBtn(){return '<button type="button" class="del-x" title="'+t('del_item')+'" onclick="this.closest(\'.rowm,.rowm1\').remove()">×</button>';}
+function addReuseRow(){
+  var w=document.getElementById('reuse-rows');var r=document.createElement('div');r.className='rowm';
+  r.innerHTML='<input type="text" class="reuse-what" placeholder="'+t('reuse_what_ph')+'">'+
+    '<div style="display:flex;gap:8px"><input type="text" class="reuse-game" placeholder="'+t('reuse_game_ph')+'" style="flex:1">'+rowDelBtn()+'</div>';
+  w.appendChild(r);
+}
+function addRiskRow(){
+  var w=document.getElementById('risk-rows');var r=document.createElement('div');r.className='rowm1';
+  r.innerHTML='<div style="display:flex;gap:8px"><input type="text" class="risk-text" placeholder="'+t('risk_ph')+'" style="flex:1">'+rowDelBtn()+'</div>';
+  w.appendChild(r);
+}
+// Update placeholders + <select> option labels on dynamically-added rows when
+// the language flips, preserving any values/selections the user already typed.
+function setOpts(sel,pairs){var v=sel.value;sel.innerHTML=pairs.map(function(p){return '<option value="'+p[0]+'">'+p[1]+'</option>';}).join('');sel.value=v;}
+function setPh(scope,cls,key){document.querySelectorAll(scope+' '+cls).forEach(function(i){i.placeholder=t(key);});}
+function retranslateRows(){
+  setPh('#reuse-rows','.reuse-what','reuse_what_ph'); setPh('#reuse-rows','.reuse-game','reuse_game_ph');
+  setPh('#risk-rows','.risk-text','risk_ph');
+  setPh('#tbd-rows','.tbd-el','tbd_element'); setPh('#tbd-rows','.tbd-needs','tbd_needs');
+  document.querySelectorAll('#tbd-rows .tbd-size').forEach(function(s){setOpts(s,[['S',t('size_s')],['M',t('size_m')],['L',t('size_l')]]);});
+  setPh('#tbd3-rows','.t3-item','p3_tbd_item'); setPh('#tbd3-rows','.t3-note','p3_tbd_note');
+  document.querySelectorAll('#tbd3-rows .t3-res').forEach(function(s){setOpts(s,[['sized',t('p3_res_sized')],['tbd',t('p3_res_tbd')],['no',t('p3_res_no')]]);});
+  document.querySelectorAll('#plat-rows .plat-sel').forEach(function(s){setOpts(s,[['ok',t('plat_ok')],['adapt',t('plat_adapt')],['no',t('plat_no')]]);});
+  document.querySelectorAll('.del-x').forEach(function(b){b.title=t('del_item');});
+}
+function buildPlatformRows(){
+  var w=document.getElementById('plat-rows'); if(!w) return; w.innerHTML='';
+  P.apps.forEach(function(a){
+    var r=document.createElement('div'); r.className='row3'; r.style.gridTemplateColumns='90px 1fr';
+    r.innerHTML='<div style="align-self:center;font-weight:600">'+(APP_LABEL[a]||a)+'</div>'+
+      '<select class="plat-sel" data-app="'+a+'"><option value="ok">'+t('plat_ok')+'</option><option value="adapt">'+t('plat_adapt')+'</option><option value="no">'+t('plat_no')+'</option></select>';
+    w.appendChild(r);
+  });
+}
+
+// ── Submit ──
+function buildPayload(){
+  var d=currentDisc(); var base=baselineFor(P.type,d?d.key:null);
+  var common={type:'scope_submission',version:1,phase:parseInt(PHASE,10),
+    pitch:P.pitch,game:P.game,gameOf:P.gameOf,gameType:P.type,apps:P.apps,
+    discipline:d?d.key:null,disciplineLabel:d?d.label:null,side:d?d.side:null,
+    baselineDays:base,estimator:document.getElementById('f-name').value.trim(),
+    lang:LANG,submittedAt:new Date().toISOString()};
+  if(PHASE==='1'){
+    var size=(document.querySelector('input[name=p1size]:checked')||{}).value||null;
+    return Object.assign(common,{sizeRead:size,
+      flags:{baselineFit:document.getElementById('p1-flag-baseline').checked,
+             risks:document.getElementById('p1-flag-risks').checked,
+             needsInvestigation:document.getElementById('p1-flag-invest').checked},
+      notes:document.getElementById('f-p1notes').value.trim()});
+  }
+  var est=parseFloat(document.getElementById('f-est').value);
+  var ref=PHASE==='3'?p2For(d.key):base;
+  var common2=Object.assign(common,{estimateDays:isNaN(est)?null:est,
+    deltaVsBaselineDays: (base!=null&&!isNaN(est))?Math.round((est-base)*10)/10:null,
+    deltaVsBaselinePct: (base?Math.round((est-base)/base*1000)/10:null)});
+  if(PHASE==='3'){
+    var tbd=[]; document.querySelectorAll('#tbd3-rows .row3').forEach(function(r){
+      var it=r.querySelector('.t3-item').value.trim(); if(!it) return;
+      tbd.push({item:it,resolution:r.querySelector('.t3-res').value,note:r.querySelector('.t3-note').value.trim()});});
+    var plat={}; document.querySelectorAll('#plat-rows .plat-sel').forEach(function(s){plat[s.dataset.app]=s.value;});
+    return Object.assign(common2,{phase2Days:ref,
+      deltaVsP2Days:(ref!=null&&!isNaN(est))?Math.round((est-ref)*10)/10:null,
+      whatChanged:document.getElementById('f-p3changed').value.trim(),
+      tbdResolutions:tbd, platformFeasibility:plat});
+  }
+  // Phase 2
+  var vfx=null;
+  if(isVfx(d.key)){
+    var tbd2=[]; document.querySelectorAll('#tbd-rows .row3').forEach(function(r){
+      var el=r.querySelector('.tbd-el').value.trim(); if(!el) return;
+      tbd2.push({element:el,size:r.querySelector('.tbd-size').value,needs:r.querySelector('.tbd-needs').value.trim()});});
+    vfx={comparableGame:document.getElementById('f-vfx-comp').value.trim(),
+      comparableDays:parseFloat(document.getElementById('f-vfx-compdays').value)||null,
+      floorDays:isNaN(est)?null:est,whyDefensible:document.getElementById('f-vfx-why').value.trim(),tbd:tbd2};
+  }
+  var reusableItems=[]; document.querySelectorAll('#reuse-rows .rowm').forEach(function(r){
+    var what=r.querySelector('.reuse-what').value.trim(); if(!what) return;
+    reusableItems.push({what:what, fromGame:r.querySelector('.reuse-game').value.trim()});});
+  var risks=[]; document.querySelectorAll('#risk-rows .risk-text').forEach(function(i){
+    var v=i.value.trim(); if(v) risks.push(v);});
+  return Object.assign(common2,{reason:document.getElementById('f-reason').value.trim(),
+    reusableItems:reusableItems, risks:risks,
+    needsInvestigation:document.getElementById('chk-invest').checked,
+    investigationItem:document.getElementById('f-invest').value.trim(),
+    lacksDetail:document.getElementById('chk-lacks').checked,
+    missingDetail:document.getElementById('f-missing').value.trim(),
+    assumedForNow:document.getElementById('f-assumed').value.trim(), vfx:vfx});
+}
+function setStatus(m,c){var s=document.getElementById('status');s.textContent=m||'';s.className='status '+(c||'');}
+function validate(){
+  var d=currentDisc(); if(!d){setStatus(t('err_disc'),'err');return false;}
+  if(PHASE==='1'){
+    if(!document.querySelector('input[name=p1size]:checked')){setStatus(t('err_p1'),'err');return false;}
+  } else {
+    var est=document.getElementById('f-est').value;
+    if(est===''||isNaN(parseFloat(est))){setStatus(t('err_est'),'err');return false;}
+    var ref=PHASE==='3'?p2For(d.key):baselineFor(P.type,d.key);
+    var whyEl=document.getElementById(PHASE==='3'?'f-p3changed':'f-reason');
+    if(ref!=null && parseFloat(est)!==ref && !whyEl.value.trim()){setStatus(t('err_reason'),'err');return false;}
+  }
+  if(!document.getElementById('f-name').value.trim()){setStatus(t('err_name'),'err');return false;}
+  return true;
+}
+function submitForm(){
+  if(!validate()) return;
+  var payload=buildPayload(); setStatus('…');
+  if(P.webhook){
+    fetch(P.webhook,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+      .then(function(r){if(!r.ok)throw 0;return r;}).then(showSuccess)
+      .catch(function(){showResultFallback(payload);setStatus('','');});
+  } else { showResultFallback(payload); setStatus('',''); }
+}
+function showSuccess(){var b=document.getElementById('success-banner');b.textContent=t('success');b.classList.add('show');
+  document.getElementById('result').classList.remove('show');setStatus('','');window.scrollTo({top:0,behavior:'smooth'});}
+function showResultFallback(p){document.getElementById('result-json').textContent=JSON.stringify(p,null,2);
+  document.getElementById('result').classList.add('show');document.getElementById('success-banner').classList.remove('show');}
+function copyJson(){var x=document.getElementById('result-json').textContent;if(navigator.clipboard)navigator.clipboard.writeText(x);setStatus('✓','ok');}
+
+// ── Boot ──
+(function(){
+  document.getElementById('game-title').textContent=P.game;
+  if(P.gameOf){document.getElementById('sub-name').style.display='block';}  // text set in applyI18n
+  document.getElementById('chip-type').textContent=P.type;
+  document.getElementById('chip-phase').textContent='Phase '+PHASE;
+  if(P.pitchUrl){var pl=document.getElementById('pitch-link');pl.href=P.pitchUrl;pl.style.display='inline-block';}
+  if(EXEMPT_TYPES.indexOf(P.type)>=0){
+    document.getElementById('form-body').style.display='none';
+    var ex=document.getElementById('exempt-msg');ex.style.display='block';ex.textContent=t('exempt').replace('{type}',P.type);
+    applyI18n(); return;
+  }
+  // phase-specific field visibility
+  document.getElementById('p1-fields').style.display = (PHASE==='1')?'block':'none';
+  document.getElementById('num-fields').style.display = (PHASE==='1')?'none':'block';
+  document.getElementById('p2-extra').style.display   = (PHASE==='2')?'block':'none';
+  document.getElementById('p3-extra').style.display   = (PHASE==='3')?'block':'none';
+  document.getElementById('baseline-box').style.display = (PHASE==='2')?'flex':'none';
+  document.getElementById('compare-box').style.display  = (PHASE==='3')?'flex':'none';
+  buildDiscDropdown();
+  if(PHASE==='3'){ buildPlatformRows(); prefillPhase3Carry(); }
+  if(PHASE==='2'){ addReuseRow(); addRiskRow(); }
+  applyI18n();
+  onDiscChange();
+})();
+</script>
+</body>
+</html>
