@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Milestone check-in · Slot Studio</title>
+<!--
+  Reusable milestone check-in form. ONE page serves every person — context
+  comes from the URL:
+    checkin-form.html?person=Jane%20Doe&webhook=https://...&d=<base64-json>
+  where `d` is base64(UTF-8 JSON) of the person's milestone list:
+    [{eid, discKey, msId, game, gameOf, app, label, desc, due, status, disc}]
+    status = "overdue" | "soon"
+  Each milestone gets three choices: leave as-is, mark done, or request a new
+  date (with a reason). Submits a JSON payload to ?webhook= (n8n) if set;
+  otherwise shows a copyable preview (interim manual path). Mirrors the
+  submission pattern of scope-form.html. Renders demo data with no params.
+-->
+<style>
+:root{
+  --ink:#23252b; --ink2:#4d5366; --ink3:#7a7f8c;
+  --bone:#faf6ee; --cream:#f3ecdd; --surface:#fffdf8; --border:#e3dcc9; --border2:#efe9da;
+  --navy:#1f2a44; --terra:#B86B4A; --terra-soft:#F2D9CB; --terra-ink:#8E4F32;
+  --sage:#5F7D55; --sage-soft:#e2ead8; --warn:#C49328; --warn-soft:#FAE7BD;
+  --red:#a84539; --red-soft:#f3d6cf;
+  --font-serif:"Fraunces",Georgia,serif; --font-sans:"Inter Tight","Inter",system-ui,sans-serif;
+  --font-mono:"JetBrains Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bone);color:var(--ink);font-family:var(--font-sans);font-size:15px;line-height:1.55;}
+.wrap{max-width:720px;margin:0 auto;padding:0 18px 80px;}
+header{background:var(--navy);color:#fff;}
+.head-inner{max-width:720px;margin:0 auto;padding:18px;display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;}
+.brand{font-family:var(--font-serif);font-size:15px;letter-spacing:.02em;opacity:.85;}
+.brand b{font-weight:600}
+h1{font-family:var(--font-serif);font-weight:500;font-size:26px;margin:6px 0 4px;}
+.sub-name{font-size:13px;color:#cfd6e6;margin:0 0 8px;}
+.ctx{font-family:var(--font-mono);font-size:12px;color:#cfd6e6;letter-spacing:.03em;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.ctx .chip{display:inline-block;background:rgba(255,255,255,.12);border-radius:20px;padding:2px 10px;}
+.intro{background:var(--cream);border:1px solid var(--border);border-radius:10px;padding:13px 15px;margin:22px 0 16px;font-size:14px;color:var(--ink2);}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:14px;}
+.ms-card{border-left:4px solid var(--border);}
+.ms-card.overdue{border-left-color:var(--red);}
+.ms-card.soon{border-left-color:var(--warn);}
+.ms-card.resolved{opacity:.7;}
+.ms-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:2px;}
+.ms-game{font-family:var(--font-mono);font-size:11px;color:var(--terra-ink);text-transform:uppercase;letter-spacing:.05em;}
+.ms-badge{font-family:var(--font-mono);font-size:11px;font-weight:600;border-radius:20px;padding:2px 10px;text-transform:uppercase;letter-spacing:.04em;}
+.ms-badge.overdue{background:var(--red-soft);color:var(--red);}
+.ms-badge.soon{background:var(--warn-soft);color:#6f5512;}
+.ms-title{font-family:var(--font-serif);font-weight:500;font-size:19px;color:var(--navy);margin:2px 0 3px;}
+.ms-meta{font-size:13px;color:var(--ink3);margin-bottom:6px;}
+.ms-meta b{color:var(--ink2);font-weight:600;}
+.ms-desc{font-size:14px;color:var(--ink2);margin:0 0 14px;}
+.field{margin-bottom:14px;}
+label.lbl{display:block;font-weight:600;font-size:14px;margin-bottom:5px;}
+.help{font-size:12.5px;color:var(--ink3);margin:0 0 7px;}
+input[type=text],input[type=date],textarea{
+  width:100%;font-family:var(--font-sans);font-size:15px;color:var(--ink);
+  background:var(--bone);border:1px solid var(--border);border-radius:8px;padding:9px 11px;outline:none;}
+input:focus,textarea:focus{border-color:var(--terra);background:#fff;}
+textarea{min-height:58px;resize:vertical;}
+.req{color:var(--terra);font-weight:700;}
+.radio-row{display:flex;gap:8px;flex-wrap:wrap;}
+.radio-row label{flex:1;min-width:140px;display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:9px;padding:10px 12px;cursor:pointer;font-size:14px;background:var(--bone);}
+.radio-row label.on{border-color:var(--terra);background:#fff;box-shadow:inset 0 0 0 1px var(--terra);}
+.radio-row input{width:auto;margin:0;}
+.sub{display:none;border-left:2px solid var(--border);padding-left:14px;margin:12px 0 2px 4px;}
+.sub.show{display:block;}
+.muted{font-size:12px;color:var(--ink3);}
+.btn{font-family:var(--font-sans);font-weight:600;font-size:15px;border-radius:9px;padding:12px 22px;cursor:pointer;border:1px solid transparent;}
+.btn-primary{background:var(--terra);color:#fff;} .btn-primary:hover{background:#a85e3f;}
+.btn-ghost{background:transparent;border-color:var(--border);color:var(--ink2);}
+.actions{display:flex;gap:12px;align-items:center;margin-top:4px;}
+.status{font-size:13.5px;} .status.err{color:var(--red);} .status.ok{color:var(--sage);font-weight:600;}
+.result{display:none;margin-top:16px;} .result.show{display:block;}
+.result pre{background:var(--navy);color:#dfe6f2;font-family:var(--font-mono);font-size:11.5px;padding:14px;border-radius:9px;overflow:auto;max-height:280px;}
+.success-banner{display:none;background:var(--sage-soft);border:1px solid #b9cdab;border-radius:10px;padding:14px 16px;margin-bottom:16px;color:#33502c;}
+.success-banner.show{display:block;}
+.empty{background:var(--sage-soft);border:1px solid #b9cdab;border-radius:10px;padding:18px;color:#33502c;text-align:center;}
+@media(max-width:560px){.radio-row label{min-width:100%;}}
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+<header>
+  <div class="head-inner">
+    <div>
+      <div class="brand"><b>Slot</b>Studio · Milestone check-in</div>
+      <h1 id="hello">Your milestones</h1>
+      <div class="ctx">
+        <span class="chip" id="chip-count">—</span>
+        <span class="chip" id="chip-date">—</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="intro" id="intro">
+    Here are your milestones that are <b>overdue</b> or <b>due soon</b>. For each one,
+    tell us if it's done, or request a new date (with a quick reason). Anything you
+    leave on <b>No change</b> we'll assume is still on track. Then hit Submit.
+  </div>
+
+  <div id="ms-list"></div>
+  <div id="empty" class="empty" style="display:none">Nothing due right now — you're all caught up. Nothing to submit.</div>
+
+  <div class="card" id="footer-card">
+    <div class="field"><label class="lbl" for="f-name">Your name <span class="req">*</span></label><input type="text" id="f-name"></div>
+    <div class="success-banner" id="success-banner"></div>
+    <div class="actions"><button class="btn btn-primary" onclick="submitForm()" id="btn-submit">Submit</button><span class="status" id="status"></span></div>
+    <div class="result" id="result">
+      <p class="muted" id="result-help">No live connection set — copy this and send it to your producer:</p>
+      <pre id="result-json"></pre>
+      <button class="btn btn-ghost" style="font-size:13px;padding:7px 14px" onclick="copyJson()">Copy</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── URL params ────────────────────────────────────────────────────────
+function qp(k,d){var v=new URLSearchParams(location.search).get(k);return v==null?d:v;}
+function b64decode(s){ // base64(UTF-8) → string
+  try{ return decodeURIComponent(escape(atob(s.replace(/-/g,'+').replace(/_/g,'/')))); }
+  catch(e){ return null; }
+}
+var DEMO = [
+  {eid:'demo1',discKey:'Art',msId:'control-file',game:'Totem Torch',gameOf:'Magic Treasure Volcano',app:'MVM',disc:'Art',
+   label:'Control File',desc:'Final art control file delivered to the engineer so the build can start.',due:'2026-05-22',status:'overdue'},
+  {eid:'demo1',discKey:'Art',msId:'first-art',game:'Totem Torch',gameOf:'Magic Treasure Volcano',app:'MVM',disc:'Art',
+   label:'First Art Pass',desc:'First full art pass for review.',due:'2026-06-03',status:'soon'},
+  {eid:'demo2',discKey:'Art',msId:'control-file',game:'Lucky Lantern',gameOf:'',app:'Crown',disc:'Art',
+   label:'Control File',desc:'Final art control file delivered to the engineer.',due:'2026-06-04',status:'soon'}
+];
+var P = {
+  person: qp('person',''),
+  webhook: qp('webhook',''),
+};
+var ITEMS;
+(function(){
+  var raw = qp('d','');
+  if(raw){ var j=b64decode(raw); try{ ITEMS = JSON.parse(j); }catch(e){ ITEMS=null; } }
+  if(!Array.isArray(ITEMS)) ITEMS = DEMO;
+})();
+
+// ── Date formatting ───────────────────────────────────────────────────
+var MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function fmtDate(iso){
+  if(!iso) return '—';
+  var p=String(iso).split('-'); if(p.length<3) return iso;
+  var y=+p[0], m=+p[1], d=+p[2];
+  if(!y||!m||!d) return iso;
+  return MONTHS[m-1]+' '+d+', '+y;
+}
+function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+
+// ── Render ────────────────────────────────────────────────────────────
+function render(){
+  if(P.person){ document.getElementById('hello').textContent = 'Hi '+P.person.split(' ')[0]+' — your milestones'; }
+  document.getElementById('chip-count').textContent = ITEMS.length+' milestone'+(ITEMS.length===1?'':'s');
+  var od = ITEMS.filter(function(m){return m.status==='overdue';}).length;
+  document.getElementById('chip-date').textContent = od? (od+' overdue') : 'all due soon';
+
+  var list=document.getElementById('ms-list');
+  if(!ITEMS.length){
+    document.getElementById('empty').style.display='block';
+    document.getElementById('footer-card').style.display='none';
+    document.getElementById('intro').style.display='none';
+    return;
+  }
+  list.innerHTML = ITEMS.map(function(m,i){
+    var st = m.status==='overdue' ? 'overdue' : 'soon';
+    var badge = m.status==='overdue' ? 'Overdue' : 'Due soon';
+    var ctxbits=[m.game]; if(m.app) ctxbits.push(m.app); if(m.disc) ctxbits.push(m.disc);
+    return ''+
+    '<div class="card ms-card '+st+'" data-idx="'+i+'">'+
+      '<div class="ms-top">'+
+        '<div class="ms-game">'+escapeHtml(ctxbits.join(' · '))+'</div>'+
+        '<span class="ms-badge '+st+'">'+badge+'</span>'+
+      '</div>'+
+      '<div class="ms-title">'+escapeHtml(m.label)+'</div>'+
+      '<div class="ms-meta">Currently due <b>'+fmtDate(m.due)+'</b></div>'+
+      (m.desc? '<p class="ms-desc">'+escapeHtml(m.desc)+'</p>' : '')+
+      '<div class="radio-row" data-idx="'+i+'">'+
+        '<label class="on"><input type="radio" name="act-'+i+'" value="none" checked onchange="onAct('+i+')"> No change</label>'+
+        '<label><input type="radio" name="act-'+i+'" value="done" onchange="onAct('+i+')"> Mark done</label>'+
+        '<label><input type="radio" name="act-'+i+'" value="newdate" onchange="onAct('+i+')"> Request new date</label>'+
+      '</div>'+
+      '<div class="sub" id="sub-'+i+'">'+
+        '<div class="field"><label class="lbl">New date <span class="req">*</span></label>'+
+          '<input type="date" class="ms-date" id="date-'+i+'" min="'+todayIso()+'"></div>'+
+        '<div class="field"><label class="lbl">Why? <span class="req">*</span></label>'+
+          '<p class="help">A sentence is plenty — what pushed it?</p>'+
+          '<textarea class="ms-why" id="why-'+i+'"></textarea></div>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+function todayIso(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function onAct(i){
+  var val=(document.querySelector('input[name=act-'+i+']:checked')||{}).value;
+  document.getElementById('sub-'+i).classList.toggle('show', val==='newdate');
+  // highlight selected segment
+  document.querySelectorAll('.radio-row[data-idx="'+i+'"] label').forEach(function(l){
+    l.classList.toggle('on', l.querySelector('input').checked);
+  });
+  document.querySelector('.ms-card[data-idx="'+i+'"]').classList.toggle('resolved', val==='done');
+}
+
+// ── Submit ────────────────────────────────────────────────────────────
+function setStatus(m,c){var s=document.getElementById('status');s.textContent=m||'';s.className='status '+(c||'');}
+function buildPayload(){
+  var responses=[];
+  ITEMS.forEach(function(m,i){
+    var val=(document.querySelector('input[name=act-'+i+']:checked')||{}).value||'none';
+    if(val==='none') return;
+    var r={eid:m.eid,discKey:m.discKey,msId:m.msId,game:m.game,label:m.label,currentDue:m.due,action:val};
+    if(val==='newdate'){ r.newDate=document.getElementById('date-'+i).value||null; r.why=document.getElementById('why-'+i).value.trim(); }
+    responses.push(r);
+  });
+  return {type:'checkin_submission',version:1,
+    person:(document.getElementById('f-name').value.trim()||P.person),
+    submittedAt:new Date().toISOString(),
+    responses:responses};
+}
+function validate(){
+  if(!document.getElementById('f-name').value.trim() && !P.person){setStatus('Please add your name.','err');return false;}
+  var bad=null;
+  ITEMS.forEach(function(m,i){
+    if(bad) return;
+    var val=(document.querySelector('input[name=act-'+i+']:checked')||{}).value;
+    if(val==='newdate'){
+      if(!document.getElementById('date-'+i).value){ bad='Pick a new date for "'+m.label+'" ('+m.game+').'; }
+      else if(!document.getElementById('why-'+i).value.trim()){ bad='Add a quick reason for the new date on "'+m.label+'" ('+m.game+').'; }
+    }
+  });
+  if(bad){setStatus(bad,'err');return false;}
+  return true;
+}
+function submitForm(){
+  if(!validate()) return;
+  var payload=buildPayload();
+  if(!payload.responses.length){ setStatus('Nothing changed — mark something done or request a new date, or just close this.','err'); return; }
+  setStatus('…');
+  if(P.webhook){
+    fetch(P.webhook,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+      .then(function(r){if(!r.ok)throw 0;return r;}).then(showSuccess)
+      .catch(function(){showResultFallback(payload);setStatus('','');});
+  } else { showResultFallback(payload); setStatus('',''); }
+}
+function showSuccess(){var b=document.getElementById('success-banner');b.textContent='Thank you! Your check-in was sent to your producer.';b.classList.add('show');
+  document.getElementById('result').classList.remove('show');setStatus('','');window.scrollTo({top:0,behavior:'smooth'});}
+function showResultFallback(p){document.getElementById('result-json').textContent=JSON.stringify(p,null,2);
+  document.getElementById('result').classList.add('show');document.getElementById('success-banner').classList.remove('show');}
+function copyJson(){var x=document.getElementById('result-json').textContent;if(navigator.clipboard)navigator.clipboard.writeText(x);setStatus('✓','ok');}
+
+// ── Boot ──
+render();
+</script>
+</body>
+</html>
