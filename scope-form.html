@@ -37,6 +37,11 @@ h1{font-family:var(--font-serif);font-weight:500;font-size:26px;margin:6px 0 4px
 .sub-name{font-size:13px;color:#cfd6e6;margin:0 0 8px;}
 .ctx{font-family:var(--font-mono);font-size:12px;color:#cfd6e6;letter-spacing:.03em;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
 .ctx .chip{display:inline-block;background:rgba(255,255,255,.12);border-radius:20px;padding:2px 10px;}
+.ctx .chip-apps{background:var(--terra);color:#fff;font-weight:600;}
+.ctx .chip-apps .chip-apps-lbl{opacity:.8;font-weight:400;margin-right:5px;}
+.lbl-with-type{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.type-pill{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--navy);background:var(--terra-soft,rgba(193,102,68,.14));border:1px solid var(--terra,#c16644);border-radius:20px;padding:2px 10px;}
+.type-pill .type-pill-lbl{font-weight:400;opacity:.7;}
 .pitch-link{color:#fff;background:var(--terra);text-decoration:none;border-radius:20px;padding:3px 12px;font-family:var(--font-sans);font-weight:600;font-size:12px;}
 .pitch-link:hover{background:#a85e3f;}
 .lang{display:flex;border:1px solid rgba(255,255,255,.3);border-radius:20px;overflow:hidden;font-family:var(--font-mono);font-size:12px;}
@@ -94,6 +99,16 @@ textarea{min-height:62px;resize:vertical;}
 .result pre{background:var(--navy);color:#dfe6f2;font-family:var(--font-mono);font-size:11.5px;padding:14px;border-radius:9px;overflow:auto;max-height:280px;}
 .success-banner{display:none;background:var(--sage-soft);border:1px solid #b9cdab;border-radius:10px;padding:14px 16px;margin-bottom:16px;color:#33502c;}
 .success-banner.show{display:block;}
+.thanks{display:none;position:fixed;inset:0;z-index:1000;background:var(--navy);align-items:center;justify-content:center;padding:32px;overflow:auto;}
+.thanks.show{display:flex;}
+.thanks-inner{max-width:520px;text-align:center;color:var(--cream);}
+.thanks-kicker{font-family:var(--font-mono);font-size:12px;text-transform:uppercase;letter-spacing:.14em;color:var(--terra);margin-bottom:10px;}
+.thanks-h1{font-family:var(--font-serif);font-size:54px;font-weight:600;margin:0 0 10px;color:#fff;}
+.thanks-sub{font-size:16px;color:#cfd6e6;margin:0 0 24px;line-height:1.5;}
+.thanks-cat{position:relative;border-radius:16px;overflow:hidden;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);min-height:200px;display:flex;align-items:center;justify-content:center;}
+.thanks-cat img{display:block;width:100%;max-height:420px;object-fit:cover;}
+.thanks-cat-fallback{font-size:96px;padding:48px 0;}
+.thanks-foot{font-family:var(--font-mono);font-size:12px;color:#9aa6bd;letter-spacing:.04em;margin:18px 0 0;}
 .guide h2,.proc h2{font-family:var(--font-serif);font-weight:500;font-size:19px;margin:22px 0 6px;color:var(--navy);}
 .guide h2:first-child,.proc h2:first-child{margin-top:0;}
 .guide p,.proc p{margin:0 0 10px;color:var(--ink2);}
@@ -105,6 +120,10 @@ textarea{min-height:62px;resize:vertical;}
 .phase-card .who{font-family:var(--font-mono);font-size:11px;color:var(--terra-ink);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;}
 .phase-card.p1{border-left-color:#A6C0D9;} .phase-card.p2{border-left-color:var(--terra);}
 .phase-card.p3{border-left-color:var(--sage);} .phase-card.p4{border-left-color:var(--warn);}
+.phase-card.active{background:var(--cream);border-color:var(--navy);box-shadow:0 2px 10px rgba(28,42,74,.12);}
+.phase-card.active h3{color:var(--navy);}
+.phase-card .here{display:inline-flex;align-items:center;gap:6px;float:right;font-family:var(--font-mono);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#fff;background:var(--navy);border-radius:20px;padding:3px 10px;}
+.phase-card .here::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--terra);}
 .exempt{background:var(--warn-soft);border:1px solid #e6cf8c;border-radius:10px;padding:16px;color:#6f5512;}
 @media(max-width:560px){.row3,.rowm{grid-template-columns:1fr;} .compare{flex-direction:column;}}
 </style>
@@ -120,6 +139,7 @@ textarea{min-height:62px;resize:vertical;}
       <h1 id="game-title">—</h1>
       <div class="sub-name" id="sub-name" style="display:none"></div>
       <div class="ctx">
+        <span class="chip chip-apps" id="chip-apps"><span class="chip-apps-lbl">App</span><span id="chip-apps-val">—</span></span>
         <span class="chip" id="chip-type">—</span>
         <span class="chip" id="chip-phase">Phase 2</span>
         <a class="pitch-link" id="pitch-link" href="#" target="_blank" rel="noopener" style="display:none">↗ <span id="pitch-link-label">View the pitch</span></a>
@@ -157,7 +177,9 @@ textarea{min-height:62px;resize:vertical;}
         <!-- PHASE 1: rough read -->
         <div id="p1-fields" style="display:none">
           <div class="field">
-            <label class="lbl" id="lbl-p1size">Rough size vs. typical</label>
+            <label class="lbl lbl-with-type" id="lbl-p1size"><span id="p1size-text">Rough size vs. typical</span>
+              <span class="type-pill" id="p1-type-pill"><span class="type-pill-lbl" id="p1-type-pill-lbl">Game type</span><span id="p1-type-pill-val">—</span></span>
+            </label>
             <p class="help" id="help-p1size">Just a gut read — no day counts needed.</p>
             <div class="radio-row" id="p1-size-row"></div>
           </div>
@@ -291,6 +313,19 @@ textarea{min-height:62px;resize:vertical;}
   <div class="pane proc" id="pane-proc"></div>
 </div>
 
+<div class="thanks" id="thankyou">
+  <div class="thanks-inner">
+    <div class="thanks-kicker" id="thanks-kicker">Scope received</div>
+    <h1 class="thanks-h1" id="thanks-h1">Thank you!</h1>
+    <p class="thanks-sub" id="thanks-sub">Your estimate is on its way to your producer. Here is a cat for your trouble.</p>
+    <div class="thanks-cat">
+      <img id="thanks-cat-img" alt="A ridiculous cat" />
+      <div class="thanks-cat-fallback" id="thanks-cat-fallback">🐱</div>
+    </div>
+    <p class="thanks-foot" id="thanks-foot">You can close this tab.</p>
+  </div>
+</div>
+
 <script>
 // ── i18n ──────────────────────────────────────────────────────────────
 var I18N = {
@@ -319,7 +354,9 @@ var I18N = {
     lacks_label:"The pitch is missing detail I need.", lacks_what:"What's missing?", lacks_assumed:"What did you assume for now?",
     your_name:"Your name", submit:"Submit", copy:"Copy",
     result_help:"No live connection set — copy this and send it to your producer:",
-    success:"Thank you! Your input was sent.", err_disc:"Please pick your discipline.",
+    success:"Thank you! Your input was sent.",
+    thx_kick:"Scope received", thx_h1:"Thank you!", thx_sub:"Your estimate is on its way to your producer. Here is a cat for your trouble.", thx_foot:"You can close this tab.",
+    err_disc:"Please pick your discipline.",
     err_est:"Please enter an estimate (in working days).", err_reason:"Please add a quick reason for the difference.",
     err_name:"Please add your name.", err_p1:"Please give a rough size read.",
     delta_more:"That's {n} day(s) MORE than {ref} — tell us why below.",
@@ -329,7 +366,7 @@ var I18N = {
     size_s:"Small", size_m:"Medium", size_l:"Large",
     // Phase 1
     p1_intro:"This is a quick gut read in the pitch meeting — about 5 minutes, not a commitment. Real day estimates come later in Phase 2.",
-    p1_size:"Rough size vs. typical", p1_size_help:"Just a gut read — no day counts needed.",
+    p1_size:"Rough size vs. typical", p1_size_help:"Just a gut read — no day counts needed.", p1_gametype:"Game type",
     p1_smaller:"Smaller", p1_about:"About right", p1_bigger:"Bigger", p1_unsure:"Can't tell yet",
     p1_flags:"Flags (check any that apply)",
     p1_fb:"Looks like a standard build", p1_fr:"I see risks worth flagging", p1_fi:"Needs investigation before it can be sized",
@@ -374,7 +411,8 @@ var I18N = {
     pr_p3_b:"Once the GDD and animatics exist, we re-check the estimate, resolve any open questions, and lock the schedule. The final, most accurate number.",
     pr_p4_h:"Phase 4 · Retrospective", pr_p4_who:"Production group",
     pr_p4_b:"After launch, we compare what we estimated to what actually happened, and tune the typical baselines over time.",
-    pr_foot:"Questions at any point? Ask your producer — they'd rather you ask than guess."
+    pr_foot:"Questions at any point? Ask your producer — they'd rather you ask than guess.",
+    pr_here:"You are here"
   },
   es: {
     kicker:"Estimación", tab_form_1:"Tu lectura", tab_form_2:"Tu estimación", tab_form_3:"Reconciliar",
@@ -401,7 +439,9 @@ var I18N = {
     lacks_label:"Al pitch le falta detalle que necesito.", lacks_what:"¿Qué falta?", lacks_assumed:"¿Qué asumiste por ahora?",
     your_name:"Tu nombre", submit:"Enviar", copy:"Copiar",
     result_help:"No hay conexión en vivo — copia esto y envíaselo a tu productor:",
-    success:"¡Gracias! Tu información fue enviada.", err_disc:"Por favor elige tu disciplina.",
+    success:"¡Gracias! Tu información fue enviada.",
+    thx_kick:"Alcance recibido", thx_h1:"¡Gracias!", thx_sub:"Tu estimación va camino a tu productor. Aquí tienes un gato por las molestias.", thx_foot:"Puedes cerrar esta pestaña.",
+    err_disc:"Por favor elige tu disciplina.",
     err_est:"Por favor ingresa una estimación (en días laborables).", err_reason:"Por favor añade un motivo breve de la diferencia.",
     err_name:"Por favor añade tu nombre.", err_p1:"Por favor da una lectura aproximada de tamaño.",
     delta_more:"Eso es {n} día(s) MÁS que {ref} — explícanos por qué abajo.",
@@ -410,7 +450,7 @@ var I18N = {
     exempt:"Este tipo de juego ({type}) está exento del proceso — la base ES el alcance. No hay nada que enviar aquí.",
     size_s:"Pequeño", size_m:"Mediano", size_l:"Grande",
     p1_intro:"Esta es una lectura rápida en la reunión de pitch — unos 5 minutos, no es un compromiso. Las estimaciones reales en días vienen después, en la Fase 2.",
-    p1_size:"Tamaño aproximado vs. lo habitual", p1_size_help:"Solo una impresión — no hacen falta días.",
+    p1_size:"Tamaño aproximado vs. lo habitual", p1_size_help:"Solo una impresión — no hacen falta días.", p1_gametype:"Tipo de juego",
     p1_smaller:"Más pequeño", p1_about:"Más o menos igual", p1_bigger:"Más grande", p1_unsure:"Aún no sé",
     p1_flags:"Señales (marca las que apliquen)",
     p1_fb:"Parece una construcción estándar", p1_fr:"Veo riesgos que vale la pena señalar", p1_fi:"Necesita investigación antes de dimensionarlo",
@@ -452,7 +492,8 @@ var I18N = {
     pr_p3_b:"Una vez que existen el GDD y las animáticas, revisamos la estimación, resolvemos las preguntas abiertas y fijamos el cronograma. El número final y más preciso.",
     pr_p4_h:"Fase 4 · Retrospectiva", pr_p4_who:"Grupo de producción",
     pr_p4_b:"Después del lanzamiento, comparamos lo que estimamos con lo que realmente pasó, y ajustamos las bases con el tiempo.",
-    pr_foot:"¿Preguntas en cualquier momento? Pregúntale a tu productor — prefiere que preguntes a que adivines."
+    pr_foot:"¿Preguntas en cualquier momento? Pregúntale a tu productor — prefiere que preguntes a que adivines.",
+    pr_here:"Estás aquí"
   },
   vi:{
     kicker:"Ước tính", tab_form_1:"Đánh giá nhanh", tab_form_2:"Ước tính của bạn", tab_form_3:"Đối chiếu",
@@ -479,7 +520,9 @@ var I18N = {
     lacks_label:"Pitch thiếu chi tiết mà tôi cần.", lacks_what:"Thiếu những gì?", lacks_assumed:"Bạn đã giả định gì cho hiện tại?",
     your_name:"Tên của bạn", submit:"Gửi", copy:"Sao chép",
     result_help:"Chưa thiết lập kết nối trực tiếp — sao chép phần này và gửi cho nhà sản xuất của bạn:",
-    success:"Cảm ơn bạn! Thông tin của bạn đã được gửi.", err_disc:"Vui lòng chọn bộ phận của bạn.",
+    success:"Cảm ơn bạn! Thông tin của bạn đã được gửi.",
+    thx_kick:"Đã nhận phạm vi", thx_h1:"Cảm ơn bạn!", thx_sub:"Ước tính của bạn đang được gửi đến nhà sản xuất. Đây là một chú mèo cho công sức của bạn.", thx_foot:"Bạn có thể đóng tab này.",
+    err_disc:"Vui lòng chọn bộ phận của bạn.",
     err_est:"Vui lòng nhập ước tính (theo ngày làm việc).", err_reason:"Vui lòng thêm lý do ngắn gọn cho sự khác biệt.",
     err_name:"Vui lòng thêm tên của bạn.", err_p1:"Vui lòng đưa ra đánh giá kích cỡ sơ bộ.",
     delta_more:"Đó là {n} ngày NHIỀU HƠN {ref} — hãy cho biết lý do bên dưới.",
@@ -488,7 +531,7 @@ var I18N = {
     exempt:"Loại trò chơi này ({type}) được miễn quy trình — mức cơ bản CHÍNH LÀ phạm vi. Không có gì để gửi ở đây.",
     size_s:"Nhỏ", size_m:"Trung bình", size_l:"Lớn",
     p1_intro:"Đây là đánh giá nhanh trong buổi họp pitch — khoảng 5 phút, không phải cam kết. Ước tính số ngày thực sự sẽ đến sau, ở Giai đoạn 2.",
-    p1_size:"Kích cỡ sơ bộ so với thông thường", p1_size_help:"Chỉ là cảm nhận — không cần số ngày.",
+    p1_size:"Kích cỡ sơ bộ so với thông thường", p1_size_help:"Chỉ là cảm nhận — không cần số ngày.", p1_gametype:"Loại trò chơi",
     p1_smaller:"Nhỏ hơn", p1_about:"Khoảng bằng", p1_bigger:"Lớn hơn", p1_unsure:"Chưa rõ",
     p1_flags:"Cờ đánh dấu (chọn những gì phù hợp)",
     p1_fb:"Trông giống một bản dựng tiêu chuẩn", p1_fr:"Tôi thấy có rủi ro đáng lưu ý", p1_fi:"Cần điều tra trước khi định cỡ",
@@ -530,7 +573,8 @@ var I18N = {
     pr_p3_b:"Khi đã có GDD và animatic, chúng ta kiểm tra lại ước tính, giải quyết các câu hỏi còn mở, và chốt lịch. Con số cuối cùng và chính xác nhất.",
     pr_p4_h:"Giai đoạn 4 · Tổng kết", pr_p4_who:"Nhóm sản xuất",
     pr_p4_b:"Sau khi phát hành, chúng tôi so sánh những gì đã ước tính với thực tế, và điều chỉnh các mức cơ bản theo thời gian.",
-    pr_foot:"Có câu hỏi bất cứ lúc nào? Hãy hỏi nhà sản xuất của bạn — họ thích bạn hỏi hơn là đoán."
+    pr_foot:"Có câu hỏi bất cứ lúc nào? Hãy hỏi nhà sản xuất của bạn — họ thích bạn hỏi hơn là đoán.",
+    pr_here:"Bạn đang ở đây"
   }
 };
 
@@ -558,7 +602,7 @@ var APP_LABEL = {MVM:'MVM',TWZ:'TWZ',Crown:'Crown',Pop:'Pop'};
 function qp(k,d){var v=new URLSearchParams(location.search).get(k);return v==null?d:v;}
 var P = {
   pitch: qp('pitch','totem-torch'), game: qp('game','Totem Torch'),
-  gameOf: qp('gameOf','Magic Treasure Volcano'), type: qp('type','Original'),
+  gameOf: qp('gameOf',''), type: qp('type','Original'),
   apps: qp('apps','MVM').split(',').map(function(s){return s.trim();}).filter(Boolean),
   disc: qp('disc',''), phase: qp('phase','2'),
   p2: qp('p2',''),   // Phase 3: the Phase 2 estimate for this discipline (number)
@@ -625,7 +669,8 @@ function applyI18n(){
   setText('lbl-investlbl',t('invest_label')); setText('lbl-investwhat',t('invest_what')); setText('help-investnote',t('invest_note'));
   setText('lbl-lackslbl',t('lacks_label')); setText('lbl-lackswhat',t('lacks_what')); setText('lbl-lacksassumed',t('lacks_assumed'));
   // P1
-  setText('lbl-p1size',t('p1_size')); setText('help-p1size',t('p1_size_help'));
+  setText('p1size-text',t('p1_size')); setText('help-p1size',t('p1_size_help'));
+  setText('p1-type-pill-lbl',t('p1_gametype'));
   setText('lbl-p1flags',t('p1_flags'));
   setText('lbl-p1fb',t('p1_fb')); setText('lbl-p1fr',t('p1_fr')); setText('lbl-p1fi',t('p1_fi'));
   setText('lbl-p1notes',t('p1_notes'));
@@ -668,7 +713,12 @@ function renderGuide(){
 }
 function renderProcess(){
   var el=document.getElementById('pane-proc');
-  function card(cls,h,who,b){return '<div class="phase-card '+cls+'"><div class="who">'+who+'</div><h3>'+h+'</h3><p style="margin:0">'+b+'</p></div>';}
+  var activeCls='p'+PHASE;  // PHASE is '1'|'2'|'3' → highlights the p1/p2/p3 card
+  function card(cls,h,who,b){
+    var on=(cls===activeCls);
+    var here=on?'<span class="here">'+t('pr_here')+'</span>':'';
+    return '<div class="phase-card '+cls+(on?' active':'')+'">'+here+'<div class="who">'+who+'</div><h3>'+h+'</h3><p style="margin:0">'+b+'</p></div>';
+  }
   el.innerHTML='<p>'+t('pr_intro')+'</p>'+
     card('p1',t('pr_p1_h'),t('pr_p1_who'),t('pr_p1_b'))+
     card('p2',t('pr_p2_h'),t('pr_p2_who'),t('pr_p2_b'))+
@@ -887,8 +937,20 @@ function submitForm(){
       .catch(function(){showResultFallback(payload);setStatus('','');});
   } else { showResultFallback(payload); setStatus('',''); }
 }
-function showSuccess(){var b=document.getElementById('success-banner');b.textContent=t('success');b.classList.add('show');
-  document.getElementById('result').classList.remove('show');setStatus('','');window.scrollTo({top:0,behavior:'smooth'});}
+function showSuccess(){
+  document.getElementById('thanks-kicker').textContent=t('thx_kick');
+  document.getElementById('thanks-h1').textContent=t('thx_h1');
+  document.getElementById('thanks-sub').textContent=t('thx_sub');
+  document.getElementById('thanks-foot').textContent=t('thx_foot');
+  var img=document.getElementById('thanks-cat-img'), fb=document.getElementById('thanks-cat-fallback');
+  fb.style.display='none';
+  img.onerror=function(){img.style.display='none';fb.style.display='block';};
+  img.onload=function(){img.style.display='block';fb.style.display='none';};
+  img.src='https://cataas.com/cat?width=480&t='+Date.now();
+  document.getElementById('result').classList.remove('show');
+  document.getElementById('thankyou').classList.add('show');
+  setStatus('','');window.scrollTo({top:0,behavior:'auto'});
+}
 function showResultFallback(p){document.getElementById('result-json').textContent=JSON.stringify(p,null,2);
   document.getElementById('result').classList.add('show');document.getElementById('success-banner').classList.remove('show');}
 function copyJson(){var x=document.getElementById('result-json').textContent;if(navigator.clipboard)navigator.clipboard.writeText(x);setStatus('✓','ok');}
@@ -899,6 +961,10 @@ function copyJson(){var x=document.getElementById('result-json').textContent;if(
   if(P.gameOf){document.getElementById('sub-name').style.display='block';}  // text set in applyI18n
   document.getElementById('chip-type').textContent=P.type;
   document.getElementById('chip-phase').textContent='Phase '+PHASE;
+  (function(){var av=P.apps&&P.apps.length?P.apps.join(', '):''; var ce=document.getElementById('chip-apps');
+    if(av){document.getElementById('chip-apps-val').textContent=av;}
+    else{ce.style.display='none';}
+    var lbl=ce.querySelector('.chip-apps-lbl'); if(lbl) lbl.textContent=(P.apps&&P.apps.length>1)?'Apps':'App';})();
   if(P.pitchUrl){var pl=document.getElementById('pitch-link');pl.href=P.pitchUrl;pl.style.display='inline-block';}
   if(EXEMPT_TYPES.indexOf(P.type)>=0){
     document.getElementById('form-body').style.display='none';
@@ -906,6 +972,7 @@ function copyJson(){var x=document.getElementById('result-json').textContent;if(
     applyI18n(); return;
   }
   // phase-specific field visibility
+  if(PHASE==='1'){ document.getElementById('p1-type-pill-val').textContent = P.type || '—'; }
   document.getElementById('p1-fields').style.display = (PHASE==='1')?'block':'none';
   document.getElementById('num-fields').style.display = (PHASE==='1')?'none':'block';
   document.getElementById('p2-extra').style.display   = (PHASE==='2')?'block':'none';
