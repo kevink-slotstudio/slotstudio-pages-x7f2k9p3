@@ -84,30 +84,35 @@ input[type=file]{padding:9px 12px;}
 
 <div class="wrap">
   <div class="intro">
-    Choose a meeting transcript from your computer. Check every game the meeting covered —
-    an art review across several games will be filed under each one. We only process what
-    you submit here; 1:1s and sensitive meetings should never be uploaded.
+    Choose a meeting transcript from your computer and pick the meeting type. For a single
+    game, check the game(s) it covered. For a <b>Content Review or other Multi-Game Meeting</b>,
+    leave it to us — we'll detect every game discussed and file under each. We only process
+    what you submit here; 1:1s and sensitive meetings should never be uploaded.
   </div>
 
   <div class="card">
-    <div class="field">
-      <label class="lbl">Game(s) covered</label>
-      <input type="search" id="gsearch" placeholder="Filter games…" autocomplete="off">
-      <div class="games" id="games"></div>
-      <div class="selcount" id="selcount">0 selected</div>
-    </div>
     <div class="field">
       <label class="lbl" for="mtype">Meeting type</label>
       <select id="mtype">
         <option>Playtest</option>
         <option>Kickoff</option>
         <option>Design review</option>
-        <option>Art review</option>
         <option>Production sync</option>
         <option>Standup</option>
         <option>Retro</option>
+        <option>Content Review or other Multi-Game Meeting</option>
         <option>Other</option>
       </select>
+    </div>
+    <div class="field" id="games-field">
+      <label class="lbl">Game(s) covered</label>
+      <input type="search" id="gsearch" placeholder="Filter games…" autocomplete="off">
+      <div class="games" id="games"></div>
+      <div class="selcount" id="selcount">0 selected</div>
+    </div>
+    <div class="field" id="autodetect-note" style="display:none">
+      <label class="lbl">Game(s) covered</label>
+      <div class="hint">We'll detect which games this meeting covered from the transcript and file notes for each — no need to pick.</div>
     </div>
     <div class="field">
       <label class="lbl" for="file">Transcript file</label>
@@ -152,12 +157,16 @@ var REGISTRY = [
 
 function qp(k,d){ var v=new URLSearchParams(location.search).get(k); return v==null?d:v; }
 var WEBHOOK = qp('webhook', 'https://pstlv.app.n8n.cloud/webhook/process-transcript');
+var MULTI_WEBHOOK = qp('webhookMulti', 'https://pstlv.app.n8n.cloud/webhook/process-transcript-multi');
+var MULTI_TYPE = 'Content Review or other Multi-Game Meeting';
 
 var fileEl = document.getElementById('file');
 var goEl = document.getElementById('go');
 var statusEl = document.getElementById('status');
 var gamesEl = document.getElementById('games');
 var selcountEl = document.getElementById('selcount');
+var mtypeEl = document.getElementById('mtype');
+function isMultiGame(){ return mtypeEl.value === MULTI_TYPE; }
 
 // Build the checkbox list from REGISTRY (sorted).
 REGISTRY.slice().sort(function(a,b){ return a.game.localeCompare(b.game); }).forEach(function(r){
@@ -186,15 +195,28 @@ function selectedGames(){
 function readyCheck(){
   var n = selectedGames().length;
   selcountEl.textContent = n + ' selected';
-  goEl.disabled = !(fileEl.files && fileEl.files.length && n);
+  var haveFile = fileEl.files && fileEl.files.length;
+  goEl.disabled = isMultiGame() ? !haveFile : !(haveFile && n);
 }
 fileEl.addEventListener('change', readyCheck);
+
+// Meeting type drives the game picker: a multi-game meeting auto-detects games,
+// so we hide the picker and only require a transcript.
+function applyMode(){
+  var multi = isMultiGame();
+  document.getElementById('games-field').style.display = multi ? 'none' : '';
+  document.getElementById('autodetect-note').style.display = multi ? '' : 'none';
+  readyCheck();
+}
+mtypeEl.addEventListener('change', applyMode);
+applyMode();
 
 function setStatus(msg, cls){ statusEl.textContent = msg || ''; statusEl.className = 'status' + (cls ? (' ' + cls) : ''); }
 
 goEl.addEventListener('click', function(){
+  var multi = isMultiGame();
   var games = selectedGames();
-  if(!games.length){ setStatus('Check at least one game.', 'err'); return; }
+  if(!multi && !games.length){ setStatus('Check at least one game.', 'err'); return; }
   var file = fileEl.files[0];
   if(!file){ setStatus('Pick a transcript file first.', 'err'); return; }
 
@@ -207,6 +229,23 @@ goEl.addEventListener('click', function(){
     if(!transcriptText.trim()){ setStatus('That file looks empty.', 'err'); goEl.disabled = false; return; }
     var meetingType = document.getElementById('mtype').value;
     var submitter = (document.getElementById('submitter').value || '').trim();
+
+    // Multi-game meeting: one POST, no game tags — the backend detects the games
+    // from the transcript and fans out to the per-game pipeline itself.
+    if(multi){
+      setStatus('Sending transcript — detecting games…', 'work');
+      fetch(MULTI_WEBHOOK, { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ transcriptText: transcriptText, meetingType: meetingType, submitter: submitter }) })
+        .then(function(res){ return res.ok; }).catch(function(){ return false; })
+        .then(function(ok){
+          document.getElementById('thanks-list').innerHTML = '';
+          document.getElementById('thanks-sub').textContent = ok
+            ? 'Detecting the games this meeting covered and filing notes for each — Confluence, Slack, and the GameLog.'
+            : 'Could not reach the pipeline — check with your producer.';
+          document.getElementById('thankyou').classList.add('show');
+        });
+      return;
+    }
 
     setStatus('Sending ' + games.length + ' game' + (games.length>1?'s':'') + ' to the pipeline…', 'work');
     var jobs = games.map(function(game){
