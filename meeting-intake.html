@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meeting notes intake · Slot Studio</title>
+<!--
+  Meeting-notes intake — the front door for the /process-transcript pipeline.
+  A human picks a transcript file, checks which game(s) the meeting covered, and
+  submits. For each selected game the page POSTs /process-transcript once, carrying
+  that game's routing from the baked REGISTRY below. So a multi-game art review
+  fans out to N single-game calls — no server-side game-guessing, strong human gate.
+
+  The backend then summarizes the transcript for that game, archives it to the
+  game's Drive folder, files a dated child under its "Meeting Notes - <Game>"
+  Confluence page, appends open items to the game's GameLog tab, and posts a Slack
+  headline + threaded reply.
+
+  REGISTRY is generated from the newest PM-tool seed by
+  scripts/build_intake_registry.js (re-run it when games/channels change).
+  Plain <input type="file"> only (File System Access API is blocked in the
+  cross-origin Confluence iframe). Deploy alongside the other forms.
+-->
+<style>
+:root{
+  --ink:#23252b; --ink2:#4d5366; --ink3:#7a7f8c;
+  --bone:#faf6ee; --cream:#f3ecdd; --surface:#fffdf8; --border:#e3dcc9; --border2:#efe9da;
+  --navy:#1f2a44; --terra:#B86B4A; --terra-soft:#F2D9CB; --terra-ink:#8E4F32;
+  --sage:#5F7D55; --sage-soft:#e2ead8; --warn:#C49328; --warn-soft:#FAE7BD;
+  --red:#a84539; --red-soft:#f3d6cf;
+  --font-serif:"Fraunces",Georgia,serif; --font-sans:"Inter Tight","Inter",system-ui,sans-serif;
+  --font-mono:"JetBrains Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bone);color:var(--ink);font-family:var(--font-sans);font-size:15px;line-height:1.55;}
+.wrap{max-width:640px;margin:0 auto;padding:0 18px 80px;}
+header{background:var(--navy);color:#fff;}
+.head-inner{max-width:640px;margin:0 auto;padding:18px;}
+.brand{font-family:var(--font-serif);font-size:15px;letter-spacing:.02em;opacity:.85;}
+.brand b{font-weight:600}
+h1{font-family:var(--font-serif);font-weight:500;font-size:26px;margin:6px 0 4px;}
+.sub{font-size:13px;color:#cfd6e6;margin:0;}
+.intro{background:var(--cream);border:1px solid var(--border);border-radius:10px;padding:13px 15px;margin:22px 0 16px;font-size:14px;color:var(--ink2);}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:14px;}
+.field{margin-bottom:16px;}
+.field:last-child{margin-bottom:0;}
+label.lbl{display:block;font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin-bottom:6px;}
+select,input[type=text],input[type=file],input[type=search]{width:100%;font-family:var(--font-sans);font-size:15px;color:var(--ink);background:var(--bone);border:1px solid var(--border);border-radius:8px;padding:10px 12px;}
+input[type=file]{padding:9px 12px;}
+.hint{font-size:12px;color:var(--ink3);margin-top:6px;}
+.games{max-height:230px;overflow:auto;border:1px solid var(--border);border-radius:8px;background:var(--bone);}
+.game-row{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--border2);cursor:pointer;}
+.game-row:last-child{border-bottom:none;}
+.game-row:hover{background:var(--cream);}
+.game-row input{width:auto;margin:0;}
+.game-row .nm{font-size:14px;}
+.selcount{font-family:var(--font-mono);font-size:11px;color:var(--terra-ink);margin-top:6px;}
+.btn{appearance:none;border:none;border-radius:9px;padding:13px 22px;font-family:var(--font-sans);font-size:15px;font-weight:600;cursor:pointer;background:var(--terra);color:#fff;transition:opacity .15s;}
+.btn:disabled{opacity:.45;cursor:not-allowed;}
+.btn:hover:not(:disabled){opacity:.9;}
+.status{margin-top:14px;font-size:14px;min-height:20px;}
+.status.err{color:var(--red);}
+.status.work{color:var(--ink2);}
+.results{margin-top:12px;font-size:13px;}
+.results .r{padding:4px 0;display:flex;gap:8px;align-items:center;}
+.results .ok{color:var(--sage);}
+.results .bad{color:var(--red);}
+.thanks{display:none;position:fixed;inset:0;z-index:1000;background:var(--navy);align-items:center;justify-content:center;padding:32px;overflow:auto;}
+.thanks.show{display:flex;}
+.thanks-inner{max-width:540px;text-align:center;color:var(--cream);}
+.thanks-kicker{font-family:var(--font-mono);font-size:12px;text-transform:uppercase;letter-spacing:.14em;color:var(--terra);margin-bottom:10px;}
+.thanks-h1{font-family:var(--font-serif);font-size:46px;font-weight:600;margin:0 0 10px;color:#fff;}
+.thanks-sub{font-size:15px;color:#cfd6e6;margin:0 0 16px;line-height:1.5;}
+.thanks-list{text-align:left;display:inline-block;font-size:14px;color:#e7ecf6;}
+.thanks-foot{font-family:var(--font-mono);font-size:12px;color:#9aa6bd;letter-spacing:.04em;margin:18px 0 0;}
+</style>
+</head>
+<body>
+<header><div class="head-inner">
+  <div class="brand"><b>Slot Studio</b> · Production</div>
+  <h1>Meeting notes intake</h1>
+  <p class="sub">Pick a transcript, check the game(s) it covered, and we'll summarize, file, and post it.</p>
+</div></header>
+
+<div class="wrap">
+  <div class="intro">
+    Choose a meeting transcript from your computer. Check every game the meeting covered —
+    an art review across several games will be filed under each one. We only process what
+    you submit here; 1:1s and sensitive meetings should never be uploaded.
+  </div>
+
+  <div class="card">
+    <div class="field">
+      <label class="lbl">Game(s) covered</label>
+      <input type="search" id="gsearch" placeholder="Filter games…" autocomplete="off">
+      <div class="games" id="games"></div>
+      <div class="selcount" id="selcount">0 selected</div>
+    </div>
+    <div class="field">
+      <label class="lbl" for="mtype">Meeting type</label>
+      <select id="mtype">
+        <option>Playtest</option>
+        <option>Kickoff</option>
+        <option>Design review</option>
+        <option>Art review</option>
+        <option>Production sync</option>
+        <option>Standup</option>
+        <option>Retro</option>
+        <option>Other</option>
+      </select>
+    </div>
+    <div class="field">
+      <label class="lbl" for="file">Transcript file</label>
+      <input type="file" id="file" accept=".txt,.vtt,.srt,.md,text/plain">
+      <div class="hint">Plain text, .vtt, .srt or .md. Word (.docx) isn't supported yet — paste into a .txt for now.</div>
+    </div>
+    <div class="field">
+      <label class="lbl" for="submitter">Your name <span style="text-transform:none;letter-spacing:0">(optional)</span></label>
+      <input type="text" id="submitter" placeholder="e.g. Kevin">
+    </div>
+    <div class="field">
+      <button class="btn" id="go" disabled>Process transcript</button>
+      <div class="status" id="status"></div>
+      <div class="results" id="results"></div>
+    </div>
+  </div>
+</div>
+
+<div class="thanks" id="thankyou"><div class="thanks-inner">
+  <div class="thanks-kicker">Transcript received</div>
+  <h1 class="thanks-h1">On its way.</h1>
+  <p class="thanks-sub" id="thanks-sub">Filing notes for each game now — Confluence, Slack, and the GameLog.</p>
+  <div class="thanks-list" id="thanks-list"></div>
+  <p class="thanks-foot">You can close this tab.</p>
+</div></div>
+
+<script>
+// REGISTRY_BEGIN — generated from slot-studio-2026-06-13.json by scripts/build_intake_registry.js
+var REGISTRY = [
+  {"game":"Acorn Caper","channel":"C0AQD7VH1G9","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/17229316097/Acorn+Caper+The+Great+Vault+reskin+GDD"},
+  {"game":"Big Lobster","channel":"C0ALDUED4G7","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/17742757893/Lucky+Lobster"},
+  {"game":"Dizzy Devil Duo","channel":"C0A1S3KM7NY","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/17710710810/Dizzy+Devil+Duo"},
+  {"game":"Elevate","channel":"C0AKU036S0P","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/17874223110/Elevate+GDD"},
+  {"game":"Framed in Gold","channel":"C0A82606KT5","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/16034693121/Medici+Marvels+GDD"},
+  {"game":"Genie's Album","channel":"C0B4189C11B","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/17770840065/Genie+s+Album+GDD"},
+  {"game":"Neon Stepper","channel":"C0B5JK1AVDJ","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/17743478785/Neon+Jackpots+Stepper+Game+GDD"},
+  {"game":"Panda Rises","channel":"C0AA15AJY3F","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/17402396764/Panda+Rises"},
+  {"game":"Scarab Rising: Pyramidians","channel":"C0AC2RP7T42","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/17713041150/Egyptian+Pots+Respin+GDD"},
+  {"game":"Turkey Trails","channel":"C0B6PBAJGAH","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/16613606259/Turkey+Trails+Thanksgiving+Reskin+of+Sheep+Trails+GDD"}
+];
+// REGISTRY_END
+
+function qp(k,d){ var v=new URLSearchParams(location.search).get(k); return v==null?d:v; }
+var WEBHOOK = qp('webhook', 'https://pstlv.app.n8n.cloud/webhook/process-transcript');
+
+var fileEl = document.getElementById('file');
+var goEl = document.getElementById('go');
+var statusEl = document.getElementById('status');
+var gamesEl = document.getElementById('games');
+var selcountEl = document.getElementById('selcount');
+
+// Build the checkbox list from REGISTRY (sorted).
+REGISTRY.slice().sort(function(a,b){ return a.game.localeCompare(b.game); }).forEach(function(r){
+  var row = document.createElement('label');
+  row.className = 'game-row';
+  var cb = document.createElement('input');
+  cb.type = 'checkbox'; cb.value = r.game; cb.className = 'game-cb';
+  var nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = r.game;
+  row.appendChild(cb); row.appendChild(nm);
+  gamesEl.appendChild(row);
+  cb.addEventListener('change', readyCheck);
+});
+
+document.getElementById('gsearch').addEventListener('input', function(e){
+  var q = (e.target.value || '').toLowerCase();
+  [].forEach.call(gamesEl.querySelectorAll('.game-row'), function(row){
+    var name = row.querySelector('.nm').textContent.toLowerCase();
+    row.style.display = name.indexOf(q) > -1 ? '' : 'none';
+  });
+});
+
+function selectedGames(){
+  return [].filter.call(document.querySelectorAll('.game-cb'), function(cb){ return cb.checked; })
+    .map(function(cb){ return cb.value; });
+}
+function readyCheck(){
+  var n = selectedGames().length;
+  selcountEl.textContent = n + ' selected';
+  goEl.disabled = !(fileEl.files && fileEl.files.length && n);
+}
+fileEl.addEventListener('change', readyCheck);
+
+function setStatus(msg, cls){ statusEl.textContent = msg || ''; statusEl.className = 'status' + (cls ? (' ' + cls) : ''); }
+
+goEl.addEventListener('click', function(){
+  var games = selectedGames();
+  if(!games.length){ setStatus('Check at least one game.', 'err'); return; }
+  var file = fileEl.files[0];
+  if(!file){ setStatus('Pick a transcript file first.', 'err'); return; }
+
+  goEl.disabled = true;
+  setStatus('Reading file…', 'work');
+  var reader = new FileReader();
+  reader.onerror = function(){ setStatus('Could not read that file.', 'err'); goEl.disabled = false; };
+  reader.onload = function(){
+    var transcriptText = String(reader.result || '');
+    if(!transcriptText.trim()){ setStatus('That file looks empty.', 'err'); goEl.disabled = false; return; }
+    var meetingType = document.getElementById('mtype').value;
+    var submitter = (document.getElementById('submitter').value || '').trim();
+
+    setStatus('Sending ' + games.length + ' game' + (games.length>1?'s':'') + ' to the pipeline…', 'work');
+    var jobs = games.map(function(game){
+      var route = REGISTRY.filter(function(r){ return r.game === game; })[0] || {};
+      var payload = {
+        transcriptText: transcriptText,
+        gameTag: game,
+        meetingType: meetingType,
+        submitter: submitter,
+        channel: route.channel || '',
+        gddUrl: route.gddUrl || ''
+      };
+      return fetch(WEBHOOK, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) })
+        .then(function(res){ return { game: game, ok: res.ok }; })
+        .catch(function(){ return { game: game, ok: false }; });
+    });
+
+    Promise.all(jobs).then(function(results){
+      var list = document.getElementById('thanks-list');
+      list.innerHTML = results.map(function(r){
+        return '<div>' + (r.ok ? '✅' : '⚠️') + ' ' + r.game + '</div>';
+      }).join('');
+      var anyFail = results.some(function(r){ return !r.ok; });
+      document.getElementById('thanks-sub').textContent = anyFail
+        ? 'Some games could not be reached — check with your producer.'
+        : 'Filing notes for each game now — Confluence, Slack, and the GameLog.';
+      document.getElementById('thankyou').classList.add('show');
+    });
+  };
+  reader.readAsText(file);
+});
+</script>
+</body>
+</html>
