@@ -166,7 +166,9 @@ var statusEl = document.getElementById('status');
 var gamesEl = document.getElementById('games');
 var selcountEl = document.getElementById('selcount');
 var mtypeEl = document.getElementById('mtype');
-function isMultiGame(){ return mtypeEl.value === MULTI_TYPE; }
+// Standup also auto-detects + routes per game (like a content review), then the
+// backend captures it strictly (summary to the channel, few tracked items).
+function isMultiGame(){ return mtypeEl.value === MULTI_TYPE || mtypeEl.value === 'Standup'; }
 
 // Build the checkbox list from REGISTRY (sorted).
 REGISTRY.slice().sort(function(a,b){ return a.game.localeCompare(b.game); }).forEach(function(r){
