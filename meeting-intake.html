@@ -85,9 +85,9 @@ input[type=file]{padding:9px 12px;}
 <div class="wrap">
   <div class="intro">
     Choose a meeting transcript from your computer and pick the meeting type. For a single
-    game, check the game(s) it covered. For a <b>Content Review or other Multi-Game Meeting</b>,
-    leave it to us — we'll detect every game discussed and file under each. We only process
-    what you submit here; 1:1s and sensitive meetings should never be uploaded.
+    game, check the game(s) it covered. For a <b>Content Review</b> or <b>Stand Up</b>, leave
+    it to us — we'll detect every game discussed and file under each. We only process what you
+    submit here; 1:1s and sensitive meetings should never be uploaded.
   </div>
 
   <div class="card">
@@ -98,9 +98,9 @@ input[type=file]{padding:9px 12px;}
         <option>Kickoff</option>
         <option>Design review</option>
         <option>Production sync</option>
-        <option>Standup</option>
         <option>Retro</option>
-        <option>Content Review or other Multi-Game Meeting</option>
+        <option>Content Review</option>
+        <option>Stand Up</option>
         <option>Other</option>
       </select>
     </div>
@@ -140,25 +140,25 @@ input[type=file]{padding:9px 12px;}
 </div></div>
 
 <script>
-// REGISTRY_BEGIN — generated from slot-studio-2026-06-13.json by scripts/build_intake_registry.js
+// REGISTRY_BEGIN — generated from slot-studio-2026-06-18.json by scripts/build_intake_registry.js
 var REGISTRY = [
   {"game":"Acorn Caper","channel":"C0AQD7VH1G9","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/17229316097/Acorn+Caper+The+Great+Vault+reskin+GDD"},
-  {"game":"Big Lobster","channel":"C0ALDUED4G7","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/17742757893/Lucky+Lobster"},
   {"game":"Dizzy Devil Duo","channel":"C0A1S3KM7NY","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/17710710810/Dizzy+Devil+Duo"},
   {"game":"Elevate","channel":"C0AKU036S0P","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/17874223110/Elevate+GDD"},
   {"game":"Framed in Gold","channel":"C0A82606KT5","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/16034693121/Medici+Marvels+GDD"},
   {"game":"Genie's Album","channel":"C0B4189C11B","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/17770840065/Genie+s+Album+GDD"},
   {"game":"Neon Stepper","channel":"C0B5JK1AVDJ","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/17743478785/Neon+Jackpots+Stepper+Game+GDD"},
-  {"game":"Panda Rises","channel":"C0AA15AJY3F","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/17402396764/Panda+Rises"},
-  {"game":"Scarab Rising: Pyramidians","channel":"C0AC2RP7T42","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/17713041150/Egyptian+Pots+Respin+GDD"},
-  {"game":"Turkey Trails","channel":"C0B6PBAJGAH","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/16613606259/Turkey+Trails+Thanksgiving+Reskin+of+Sheep+Trails+GDD"}
+  {"game":"Turkey Trails","channel":"C0B6PBAJGAH","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/16613606259/Turkey+Trails+Thanksgiving+Reskin+of+Sheep+Trails+GDD"},
+  {"game":"Witches Castle","channel":"C0BB7N0K4BW","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/15848800372/Witch+s+Castle+Genie+s+Palace+Infinite+Wishes+reskin"}
 ];
 // REGISTRY_END
 
 function qp(k,d){ var v=new URLSearchParams(location.search).get(k); return v==null?d:v; }
 var WEBHOOK = qp('webhook', 'https://pstlv.app.n8n.cloud/webhook/process-transcript');
 var MULTI_WEBHOOK = qp('webhookMulti', 'https://pstlv.app.n8n.cloud/webhook/process-transcript-multi');
-var MULTI_TYPE = 'Content Review or other Multi-Game Meeting';
+// Both multi-game meeting types auto-detect games and route per game; the backend
+// branches on meetingType (Content Review vs Stand Up).
+var MULTI_TYPES = ['Content Review', 'Stand Up'];
 
 var fileEl = document.getElementById('file');
 var goEl = document.getElementById('go');
@@ -166,9 +166,9 @@ var statusEl = document.getElementById('status');
 var gamesEl = document.getElementById('games');
 var selcountEl = document.getElementById('selcount');
 var mtypeEl = document.getElementById('mtype');
-// Standup also auto-detects + routes per game (like a content review), then the
-// backend captures it strictly (summary to the channel, few tracked items).
-function isMultiGame(){ return mtypeEl.value === MULTI_TYPE || mtypeEl.value === 'Standup'; }
+// Content Review and Stand Up both auto-detect games + route per game; the backend
+// captures strictly and posts a group summary to the relevant channel.
+function isMultiGame(){ return MULTI_TYPES.indexOf(mtypeEl.value) > -1; }
 
 // Build the checkbox list from REGISTRY (sorted).
 REGISTRY.slice().sort(function(a,b){ return a.game.localeCompare(b.game); }).forEach(function(r){
