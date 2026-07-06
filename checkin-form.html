@@ -43,6 +43,21 @@ h1{font-family:var(--font-serif);font-weight:500;font-size:26px;margin:6px 0 4px
 .ms-card.overdue{border-left-color:var(--red);}
 .ms-card.soon{border-left-color:var(--warn);}
 .ms-card.resolved{opacity:.7;}
+.ms-group{margin-bottom:26px;}
+.ms-group-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:0 0 10px;padding-bottom:7px;border-bottom:1px solid var(--border);}
+.ms-group-game{font-family:var(--font-serif);font-size:22px;font-weight:600;color:var(--navy);}
+.ms-group-app{font-family:var(--font-mono);font-size:11px;color:var(--terra-ink);text-transform:uppercase;letter-spacing:.05em;background:rgba(0,0,0,.05);border-radius:20px;padding:2px 10px;}
+.ms-group-count{font-family:var(--font-mono);font-size:11px;color:var(--ink3);letter-spacing:.04em;margin-left:auto;}
+.thanks{display:none;position:fixed;inset:0;z-index:1000;background:var(--navy);align-items:center;justify-content:center;padding:32px;overflow:auto;}
+.thanks.show{display:flex;}
+.thanks-inner{max-width:520px;text-align:center;color:var(--cream);}
+.thanks-kicker{font-family:var(--font-mono);font-size:12px;text-transform:uppercase;letter-spacing:.14em;color:var(--terra);margin-bottom:10px;}
+.thanks-h1{font-family:var(--font-serif);font-size:54px;font-weight:600;margin:0 0 10px;color:#fff;}
+.thanks-sub{font-size:16px;color:#cfd6e6;margin:0 0 24px;line-height:1.5;}
+.thanks-cat{position:relative;border-radius:16px;overflow:hidden;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);min-height:200px;display:flex;align-items:center;justify-content:center;}
+.thanks-cat img{display:block;width:100%;max-height:420px;object-fit:cover;}
+.thanks-cat-fallback{font-size:96px;padding:48px 0;}
+.thanks-foot{font-family:var(--font-mono);font-size:12px;color:#9aa6bd;letter-spacing:.04em;margin:18px 0 0;}
 .ms-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:2px;}
 .ms-game{font-family:var(--font-mono);font-size:11px;color:var(--terra-ink);text-transform:uppercase;letter-spacing:.05em;}
 .ms-badge{font-family:var(--font-mono);font-size:11px;font-weight:600;border-radius:20px;padding:2px 10px;text-transform:uppercase;letter-spacing:.04em;}
@@ -120,6 +135,19 @@ textarea{min-height:58px;resize:vertical;}
   </div>
 </div>
 
+<div class="thanks" id="thankyou">
+  <div class="thanks-inner">
+    <div class="thanks-kicker">Check-in received</div>
+    <h1 class="thanks-h1">Thank you!</h1>
+    <p class="thanks-sub">Your update is on its way to your producer. Here is a cat for your trouble.</p>
+    <div class="thanks-cat">
+      <img id="thanks-cat-img" alt="A ridiculous cat" />
+      <div class="thanks-cat-fallback" id="thanks-cat-fallback">🐱</div>
+    </div>
+    <p class="thanks-foot">You can close this tab.</p>
+  </div>
+</div>
+
 <script>
 // ── URL params ────────────────────────────────────────────────────────
 function qp(k,d){var v=new URLSearchParams(location.search).get(k);return v==null?d:v;}
@@ -139,11 +167,19 @@ var P = {
   person: qp('person',''),
   webhook: qp('webhook',''),
 };
-var ITEMS;
+var ITEMS, LOAD_ERROR=false;
 (function(){
   var raw = qp('d','');
-  if(raw){ var j=b64decode(raw); try{ ITEMS = JSON.parse(j); }catch(e){ ITEMS=null; } }
-  if(!Array.isArray(ITEMS)) ITEMS = DEMO;
+  if(raw){
+    var j=b64decode(raw); try{ ITEMS = JSON.parse(j); }catch(e){ ITEMS=null; }
+    // A payload was provided but couldn't be decoded — almost always a link
+    // that got truncated (very long links can be cut off in Slack). Do NOT
+    // silently fall back to the demo sample (that looked like someone else's
+    // tasks); flag it so we show a clear "incomplete link" message instead.
+    if(!Array.isArray(ITEMS)){ LOAD_ERROR = true; ITEMS = []; }
+  } else {
+    ITEMS = DEMO;   // no payload at all → preview / demo
+  }
 })();
 
 // ── Date formatting ───────────────────────────────────────────────────
@@ -159,6 +195,17 @@ function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c)
 
 // ── Render ────────────────────────────────────────────────────────────
 function render(){
+  if(LOAD_ERROR){
+    var h=document.getElementById('hello'); if(h) h.textContent='This check-in link looks incomplete';
+    ['intro','footer-card','empty'].forEach(function(id){ var el=document.getElementById(id); if(el) el.style.display='none'; });
+    ['chip-count','chip-date'].forEach(function(id){ var el=document.getElementById(id); if(el) el.textContent=''; });
+    document.getElementById('ms-list').innerHTML =
+      '<div class="card" style="padding:18px;line-height:1.55">'+
+      '<strong>This link appears to have been cut off.</strong><br>'+
+      'Very long check-in links can get truncated in Slack. Please ask your producer to re-send your check-in link — it should open correctly.'+
+      '</div>';
+    return;
+  }
   if(P.person){ document.getElementById('hello').textContent = 'Hi '+P.person.split(' ')[0]+' — your milestones'; }
   document.getElementById('chip-count').textContent = ITEMS.length+' milestone'+(ITEMS.length===1?'':'s');
   var od = ITEMS.filter(function(m){return m.status==='overdue';}).length;
@@ -171,31 +218,52 @@ function render(){
     document.getElementById('intro').style.display='none';
     return;
   }
-  list.innerHTML = ITEMS.map(function(m,i){
-    var st = m.status==='overdue' ? 'overdue' : 'soon';
-    var badge = m.status==='overdue' ? 'Overdue' : 'Due soon';
-    var ctxbits=[m.game]; if(m.app) ctxbits.push(m.app); if(m.disc) ctxbits.push(m.disc);
+  // Group milestones by game, preserving each item's original ITEMS index
+  // (radio names / sub-field ids all key off that index, so we never reindex).
+  var groups=[], byGame={};
+  ITEMS.forEach(function(m,i){
+    var key=m.game||'—';
+    if(!byGame[key]){ byGame[key]={game:m.game,app:m.app,rows:[]}; groups.push(byGame[key]); }
+    byGame[key].rows.push({m:m,i:i});
+  });
+  list.innerHTML = groups.map(function(g){
+    var cards=g.rows.map(function(row){
+      var m=row.m, i=row.i;
+      var st = m.status==='overdue' ? 'overdue' : 'soon';
+      var badge = m.status==='overdue' ? 'Overdue' : 'Due soon';
+      var ctxbits=[]; if(m.app) ctxbits.push(m.app); if(m.disc) ctxbits.push(m.disc);
+      return ''+
+      '<div class="card ms-card '+st+'" data-idx="'+i+'">'+
+        '<div class="ms-top">'+
+          (ctxbits.length? '<div class="ms-game">'+escapeHtml(ctxbits.join(' · '))+'</div>' : '<div class="ms-game"></div>')+
+          '<span class="ms-badge '+st+'">'+badge+'</span>'+
+        '</div>'+
+        '<div class="ms-title">'+escapeHtml(m.label)+'</div>'+
+        '<div class="ms-meta">Currently due <b>'+fmtDate(m.due)+'</b></div>'+
+        (m.desc? '<p class="ms-desc">'+escapeHtml(m.desc)+'</p>' : '')+
+        '<div class="radio-row" data-idx="'+i+'">'+
+          '<label class="on"><input type="radio" name="act-'+i+'" value="none" checked onchange="onAct('+i+')"> No change</label>'+
+          '<label><input type="radio" name="act-'+i+'" value="done" onchange="onAct('+i+')"> Mark done</label>'+
+          '<label><input type="radio" name="act-'+i+'" value="newdate" onchange="onAct('+i+')"> Request new date</label>'+
+        '</div>'+
+        '<div class="sub" id="sub-'+i+'">'+
+          '<div class="field"><label class="lbl">New date <span class="req">*</span></label>'+
+            '<input type="date" class="ms-date" id="date-'+i+'" min="'+todayIso()+'"></div>'+
+          '<div class="field"><label class="lbl">Why? <span class="req">*</span></label>'+
+            '<p class="help">A sentence is plenty — what pushed it?</p>'+
+            '<textarea class="ms-why" id="why-'+i+'"></textarea></div>'+
+        '</div>'+
+      '</div>';
+    }).join('');
+    var n=g.rows.length;
     return ''+
-    '<div class="card ms-card '+st+'" data-idx="'+i+'">'+
-      '<div class="ms-top">'+
-        '<div class="ms-game">'+escapeHtml(ctxbits.join(' · '))+'</div>'+
-        '<span class="ms-badge '+st+'">'+badge+'</span>'+
+    '<div class="ms-group">'+
+      '<div class="ms-group-head">'+
+        '<span class="ms-group-game">'+escapeHtml(g.game||'—')+'</span>'+
+        (g.app? '<span class="ms-group-app">'+escapeHtml(g.app)+'</span>' : '')+
+        '<span class="ms-group-count">'+n+' milestone'+(n===1?'':'s')+'</span>'+
       '</div>'+
-      '<div class="ms-title">'+escapeHtml(m.label)+'</div>'+
-      '<div class="ms-meta">Currently due <b>'+fmtDate(m.due)+'</b></div>'+
-      (m.desc? '<p class="ms-desc">'+escapeHtml(m.desc)+'</p>' : '')+
-      '<div class="radio-row" data-idx="'+i+'">'+
-        '<label class="on"><input type="radio" name="act-'+i+'" value="none" checked onchange="onAct('+i+')"> No change</label>'+
-        '<label><input type="radio" name="act-'+i+'" value="done" onchange="onAct('+i+')"> Mark done</label>'+
-        '<label><input type="radio" name="act-'+i+'" value="newdate" onchange="onAct('+i+')"> Request new date</label>'+
-      '</div>'+
-      '<div class="sub" id="sub-'+i+'">'+
-        '<div class="field"><label class="lbl">New date <span class="req">*</span></label>'+
-          '<input type="date" class="ms-date" id="date-'+i+'" min="'+todayIso()+'"></div>'+
-        '<div class="field"><label class="lbl">Why? <span class="req">*</span></label>'+
-          '<p class="help">A sentence is plenty — what pushed it?</p>'+
-          '<textarea class="ms-why" id="why-'+i+'"></textarea></div>'+
-      '</div>'+
+      cards+
     '</div>';
   }).join('');
 }
@@ -251,8 +319,15 @@ function submitForm(){
       .catch(function(){showResultFallback(payload);setStatus('','');});
   } else { showResultFallback(payload); setStatus('',''); }
 }
-function showSuccess(){var b=document.getElementById('success-banner');b.textContent='Thank you! Your check-in was sent to your producer.';b.classList.add('show');
-  document.getElementById('result').classList.remove('show');setStatus('','');window.scrollTo({top:0,behavior:'smooth'});}
+function showSuccess(){
+  var img=document.getElementById('thanks-cat-img'), fb=document.getElementById('thanks-cat-fallback');
+  fb.style.display='none';
+  img.onerror=function(){img.style.display='none';fb.style.display='block';};
+  img.onload=function(){img.style.display='block';fb.style.display='none';};
+  img.src='https://cataas.com/cat?width=480&t='+Date.now();
+  document.getElementById('thankyou').classList.add('show');
+  setStatus('','');window.scrollTo({top:0,behavior:'auto'});
+}
 function showResultFallback(p){document.getElementById('result-json').textContent=JSON.stringify(p,null,2);
   document.getElementById('result').classList.add('show');document.getElementById('success-banner').classList.remove('show');}
 function copyJson(){var x=document.getElementById('result-json').textContent;if(navigator.clipboard)navigator.clipboard.writeText(x);setStatus('✓','ok');}
