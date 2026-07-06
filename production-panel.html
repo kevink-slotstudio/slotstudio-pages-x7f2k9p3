@@ -157,7 +157,9 @@ function qp(k,d){var v=new URLSearchParams(location.search).get(k);return v==nul
 var API = qp('api','https://pstlv.app.n8n.cloud/webhook');
 var SHEET_URL = 'https://docs.google.com/spreadsheets/d/16hZsT9U-R3ry9FQ3Ml555QgFfgrwqH-JX4K5Tme9EWQ/edit';
 var JIRA_BROWSE = 'https://psasia.atlassian.net/browse/';
-var GAME = qp('game', (REGISTRY[0]||{}).game || '');
+// No default game: without ?game= the page shows a "pick a game" landing state
+// instead of burning a 10-20s n8n fetch on whatever sorts first.
+var GAME = qp('game','');
 var STATE = { items:[], people:[], status:'open', types:{}, overdueOnly:false, q:'', jira:null };
 var todayIso = new Date().toLocaleDateString('en-CA');
 
@@ -165,6 +167,7 @@ document.getElementById('sheet-link').href = SHEET_URL;
 // Game switcher
 (function(){
   var sel=document.getElementById('game-sel');
+  var ph=document.createElement('option'); ph.value=''; ph.textContent='Pick a game…'; sel.appendChild(ph);
   REGISTRY.slice().sort(function(a,b){return a.game.localeCompare(b.game);}).forEach(function(r){
     var o=document.createElement('option'); o.value=r.game; o.textContent=r.game; sel.appendChild(o);
   });
@@ -172,7 +175,7 @@ document.getElementById('sheet-link').href = SHEET_URL;
     var o=document.createElement('option'); o.value=GAME; o.textContent=GAME; sel.appendChild(o);
   }
   sel.value=GAME;
-  sel.addEventListener('change',function(){ GAME=sel.value; var u=new URL(location.href); u.searchParams.set('game',GAME); history.replaceState(null,'',u); load(); });
+  sel.addEventListener('change',function(){ GAME=sel.value; var u=new URL(location.href); if(GAME) u.searchParams.set('game',GAME); else u.searchParams.delete('game'); history.replaceState(null,'',u); load(); });
 })();
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
@@ -185,6 +188,13 @@ function load(){
   STATE.jira = null;   // per-game cache — clear on game switch
   document.getElementById('title').textContent = GAME || 'Production panel';
   document.title = (GAME?GAME+' · ':'')+'Production panel';
+  if(!GAME){
+    // Landing state — no fetch until a game is chosen.
+    STATE.items=[]; STATE.people=[];
+    document.getElementById('count').textContent='';
+    document.getElementById('list').innerHTML='<div class="empty">👆 Pick a game from the dropdown above to load its board.<br><span style="font-family:var(--font-mono);font-size:11px;font-style:normal;color:var(--ink4)">Each game takes 10–20 seconds to fetch — it\'s always live data.</span></div>';
+    return;
+  }
   document.getElementById('list').innerHTML='<div class="loading">Loading '+esc(GAME)+'…</div>';
   fetch(API+'/panel-read?game='+encodeURIComponent(GAME))
     .then(function(r){return r.json();})
@@ -278,6 +288,7 @@ function renderJira(){
 }
 
 function render(){
+  if(!GAME){ load(); return; }   // landing state — keep the picker prompt up
   if(STATE.status==='jira'){ renderJira(); return; }
   var list=visible();
   var open=STATE.items.filter(function(m){return isOpen(m)&&!isSnoozed(m);}).length;
