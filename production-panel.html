@@ -62,7 +62,14 @@ input#search{flex:1;min-width:140px;font-family:var(--font-sans);font-size:13px;
 .due{font-family:var(--font-mono);font-size:11px;color:var(--ink2);}
 .due.overdue{color:var(--red);font-weight:700;}
 .snz{font-family:var(--font-mono);font-size:10px;color:#8a6614;}
-.jira{font-family:var(--font-mono);font-size:10px;color:var(--teal);}
+a.jira{font-family:var(--font-mono);font-size:10px;color:var(--teal);text-decoration:none;border:1px solid #cfe0e5;border-radius:6px;padding:2px 7px;}
+a.jira:hover{background:#e2ecf1;}
+.jstatus{font-family:var(--font-mono);font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:2px 8px;border-radius:10px;}
+.jstatus.new{background:var(--cream);color:var(--ink3);border:1px solid var(--border);}
+.jstatus.indeterminate{background:#dce8f5;color:#2b5b8f;}
+.jstatus.done{background:var(--sage-soft);color:#3f5538;}
+.jira-open{font-family:var(--font-mono);font-size:11px;color:var(--terra);text-decoration:none;}
+.jira-open:hover{text-decoration:underline;}
 .top .sp{flex:1}
 .txt{font-size:14.5px;line-height:1.45;margin:2px 0 6px;}
 .card.is-resolved .txt{text-decoration:line-through;text-decoration-color:var(--ink4);}
@@ -101,6 +108,7 @@ select.asel{font-family:var(--font-sans);font-size:12px;padding:5px 8px;border-r
     <button class="tab" data-status="snoozed">Snoozed</button>
     <button class="tab" data-status="resolved">Resolved</button>
     <button class="tab" data-status="all">All</button>
+    <button class="tab" data-status="jira">Jira ⤴</button>
     <span style="width:8px"></span>
     <button class="chip" data-type="issue">Issues</button>
     <button class="chip" data-type="action">Actions</button>
@@ -147,8 +155,9 @@ var REGISTRY = [
 function qp(k,d){var v=new URLSearchParams(location.search).get(k);return v==null?d:v;}
 var API = qp('api','https://pstlv.app.n8n.cloud/webhook');
 var SHEET_URL = 'https://docs.google.com/spreadsheets/d/16hZsT9U-R3ry9FQ3Ml555QgFfgrwqH-JX4K5Tme9EWQ/edit';
+var JIRA_BROWSE = 'https://psasia.atlassian.net/browse/';
 var GAME = qp('game', (REGISTRY[0]||{}).game || '');
-var STATE = { items:[], people:[], status:'open', types:{}, overdueOnly:false, q:'' };
+var STATE = { items:[], people:[], status:'open', types:{}, overdueOnly:false, q:'', jira:null };
 var todayIso = new Date().toLocaleDateString('en-CA');
 
 document.getElementById('sheet-link').href = SHEET_URL;
@@ -172,6 +181,7 @@ function isSnoozed(m){ var s=String(m.snoozeUntil||'').trim(); return !!s && s>t
 function isOpen(m){ return String(m.status||'').toLowerCase()!=='resolved'; }
 
 function load(){
+  STATE.jira = null;   // per-game cache — clear on game switch
   document.getElementById('title').textContent = GAME || 'Production panel';
   document.title = (GAME?GAME+' · ':'')+'Production panel';
   document.getElementById('list').innerHTML='<div class="loading">Loading '+esc(GAME)+'…</div>';
@@ -219,7 +229,7 @@ function card(m){
       (sev==='blocker'?'<span class="sevtag">🚨 blocker</span>':'')+
       due+
       (snz&&open?'<span class="snz">😴 until '+fmtD(m.snoozeUntil)+'</span>':'')+
-      (m.jiraKey?'<span class="jira">⤴ '+esc(m.jiraKey)+'</span>':'')+
+      (m.jiraKey?'<a class="jira" href="'+esc(JIRA_BROWSE+m.jiraKey)+'" target="_blank" rel="noopener">⤴ '+esc(m.jiraKey)+'</a>':'')+
       '<span class="sp"></span>'+
       (m.owner?'<span class="due">'+esc(m.owner)+'</span>':'')+
     '</div>'+
@@ -234,7 +244,39 @@ function card(m){
   '</div>';
 }
 
+// "Jira" tab: live MGB tickets for this game (component = game name), fetched
+// through the n8n panel API — Jira Cloud can't be iframed, so this is the
+// embedded filter. Cached per game; invalidated when a new ticket is filed.
+function renderJira(){
+  if(!STATE.jira){
+    document.getElementById('count').textContent='';
+    document.getElementById('list').innerHTML='<div class="loading">Loading MGB tickets…</div>';
+    fetch(API+'/panel-jira-list?game='+encodeURIComponent(GAME))
+      .then(function(r){return r.json();})
+      .then(function(d){ STATE.jira=d; if(STATE.status==='jira') renderJira(); })
+      .catch(function(e){ document.getElementById('list').innerHTML='<div class="empty">Could not load Jira tickets — '+esc(e.message)+'</div>'; });
+    return;
+  }
+  var d=STATE.jira, ts=d.tickets||[];
+  document.getElementById('count').innerHTML=ts.length+' MGB ticket'+(ts.length===1?'':'s')+' for '+esc(GAME)+' · <a class="jira-open" href="'+esc(d.jiraUrl||'#')+'" target="_blank" rel="noopener">open this filter in Jira ↗</a>';
+  if(d.error){ document.getElementById('list').innerHTML='<div class="empty">Jira search failed: '+esc(d.error)+'</div>'; return; }
+  if(!ts.length){ document.getElementById('list').innerHTML='<div class="empty">No MGB tickets for this game yet — file one from any open item.</div>'; return; }
+  document.getElementById('list').innerHTML=ts.map(function(t){
+    return '<div class="card" style="border-left-color:var(--teal)">'+
+      '<div class="top">'+
+        '<a class="jira" href="'+esc(t.url)+'" target="_blank" rel="noopener">⤴ '+esc(t.key)+'</a>'+
+        '<span class="jstatus '+esc(t.statusCat||'new')+'">'+esc(t.status||'?')+'</span>'+
+        '<span class="sp"></span>'+
+        (t.assignee?'<span class="due">'+esc(t.assignee)+'</span>':'<span class="due" style="color:var(--ink4)">unassigned</span>')+
+      '</div>'+
+      '<div class="txt">'+esc(t.summary)+'</div>'+
+      '<div class="meta"><span>updated '+esc(fmtD(t.updated))+'</span></div>'+
+    '</div>';
+  }).join('');
+}
+
 function render(){
+  if(STATE.status==='jira'){ renderJira(); return; }
   var list=visible();
   var open=STATE.items.filter(function(m){return isOpen(m)&&!isSnoozed(m);}).length;
   document.getElementById('count').textContent=list.length+' shown · '+open+' open · '+STATE.items.length+' total';
@@ -287,7 +329,7 @@ document.getElementById('list').addEventListener('click',function(e){
     if(!confirm('Create an MGB Feedback ticket for '+(m.ref||id)+' and close this item?')) return;
     b.disabled=true; b.textContent='⤴ Filing…';
     post('panel-jira',{game:GAME,id:id,ref:m.ref||id,text:m.text,due:m.due||'',link:m.link||''}).then(function(r){
-      if(r.ok){ m.status='resolved'; m.jiraKey=r.key; m.updated=todayIso; render(); flash('⤴ Filed '+r.key+' — item closed'); }
+      if(r.ok){ m.status='resolved'; m.jiraKey=r.key; m.updated=todayIso; STATE.jira=null; render(); flash('⤴ Filed '+r.key+' — item closed'); }
       else { b.disabled=false; b.textContent='⤴ Jira'; flash('⚠ Jira failed: '+(r.error||'unknown')); }
     });
   }
