@@ -82,6 +82,7 @@ a.jira:hover{background:#e2ecf1;}
 .abtn.primary:hover{opacity:.9;color:#fff;}
 .abtn:disabled{opacity:.45;cursor:not-allowed;}
 select.asel{font-family:var(--font-sans);font-size:12px;padding:5px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bone);color:var(--ink2);max-width:150px;}
+input.adate{font-family:var(--font-mono);font-size:11px;padding:4px 7px;border-radius:8px;border:1px solid var(--border);background:var(--bone);color:var(--ink2);}
 .status-line{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;font-size:13px;padding:9px 18px;border-radius:20px;box-shadow:0 4px 14px rgba(0,0,0,.25);display:none;z-index:50;max-width:80vw;}
 .grp{font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin:20px 0 8px;}
 .grp.blockers{color:var(--red);}
@@ -217,6 +218,7 @@ function card(m){
     acts='<button class="abtn primary" data-act="done">✓ Done</button>'+
       '<select class="asel" data-act="assign"><option value="">Assign…</option>'+ppl+'</select>'+
       '<select class="asel" data-act="snooze"><option value="">Snooze…</option><option value="1">1 day</option><option value="3">3 days</option><option value="7">1 week</option><option value="14">2 weeks</option></select>'+
+      '<input type="date" class="adate" data-act="due" value="'+esc(m.due||'')+'" title="Set / change the due date (clear to remove)">'+
       '<button class="abtn" data-act="notify"'+(m.owner?'':' disabled title="Assign someone first"')+'>🔔 Notify</button>'+
       '<button class="abtn" data-act="jira"'+(m.jiraKey?' disabled':'')+'>⤴ Jira</button>';
   } else {
@@ -335,6 +337,18 @@ document.getElementById('list').addEventListener('click',function(e){
   }
 });
 document.getElementById('list').addEventListener('change',function(e){
+  // Due-date picker: set (or clear) the item's due date.
+  var dt=e.target.closest('.adate');
+  if(dt){
+    var cardEl0=e.target.closest('.card'); var id0=cardEl0.dataset.id;
+    var m0=STATE.items.find(function(x){return String(x.id)===id0;}); if(!m0) return;
+    var v=dt.value||'';
+    m0.due=v; m0.updated=todayIso; render();
+    post('panel-action',{action:'due',game:GAME,id:id0,due:v}).then(function(r){
+      flash(r.ok?(v?('📅 '+(m0.ref||id0)+' due '+fmtD(v)):('📅 due date cleared on '+(m0.ref||id0))):'⚠ save failed');
+    });
+    return;
+  }
   var s=e.target.closest('.asel'); if(!s||!s.value) return;
   var cardEl=e.target.closest('.card'); var id=cardEl.dataset.id;
   var m=STATE.items.find(function(x){return String(x.id)===id;}); if(!m) return;
