@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Production panel · Slot Studio</title>
+<!--
+  Producer control panel (Phase 2 of the producer rework). One page, scoped to a
+  game via ?game=<name> (each game's Confluence hub iframes it with its own game)
+  with a switcher for standalone use. Reads/writes the GameLog sheet through the
+  n8n panel API (panel-read / panel-action / panel-notify / panel-jira) — the
+  sheet stays the single source of truth, so digests/bot/reports pick up every
+  change automatically. Team-facing Slack digests are read-only; THIS is where
+  actions live: mark done, reopen, assign (no ping), snooze, Notify (@mention in
+  the game channel, opt-in), and Jira handoff (MGB "Feedback" ticket, closes the
+  item). REGISTRY below is re-baked from live state on every publish.
+-->
+<style>
+:root{
+  --ink:#23252b; --ink2:#4d5366; --ink3:#7a7f8c; --ink4:#b8bcc7;
+  --bone:#faf6ee; --cream:#f3ecdd; --surface:#fffdf8; --border:#e3dcc9; --border2:#efe9da;
+  --navy:#1f2a44; --terra:#B86B4A; --terra-soft:#F2D9CB; --terra-ink:#8E4F32;
+  --sage:#5F7D55; --sage-soft:#e2ead8; --warn:#C49328; --warn-soft:#FAE7BD;
+  --red:#a84539; --red-soft:#f3d6cf; --teal:#2F7D8F;
+  --font-serif:"Fraunces",Georgia,serif; --font-sans:"Inter Tight","Inter",system-ui,sans-serif;
+  --font-mono:"JetBrains Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bone);color:var(--ink);font-family:var(--font-sans);font-size:14.5px;line-height:1.5;}
+.wrap{max-width:880px;margin:0 auto;padding:0 18px 90px;}
+header{background:var(--navy);color:#fff;}
+.head-inner{max-width:880px;margin:0 auto;padding:16px 18px;display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;}
+.brand{font-family:var(--font-serif);font-size:14px;opacity:.85;} .brand b{font-weight:600}
+h1{font-family:var(--font-serif);font-weight:500;font-size:24px;margin:4px 0 0;}
+.head-spacer{flex:1}
+.head-actions{display:flex;gap:8px;align-items:center;padding-bottom:2px;}
+select#game-sel{font-family:var(--font-sans);font-size:13px;padding:7px 10px;border-radius:8px;border:1px solid #3a4663;background:#2a3552;color:#fff;max-width:260px;}
+a.sheet-link{font-family:var(--font-mono);font-size:11px;color:#cfd6e6;text-decoration:none;border:1px solid #3a4663;border-radius:8px;padding:7px 11px;}
+a.sheet-link:hover{color:#fff;border-color:#5a6a8f;}
+.bar{position:sticky;top:0;z-index:20;background:var(--bone);border-bottom:1px solid var(--border);padding:10px 0;margin-bottom:14px;}
+.bar-inner{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.tab{font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:6px 13px;border-radius:16px;border:1px solid var(--border);background:var(--surface);color:var(--ink3);cursor:pointer;}
+.tab.on{background:var(--navy);border-color:var(--navy);color:#fff;}
+.chip{font-family:var(--font-mono);font-size:10px;font-weight:600;padding:5px 10px;border-radius:14px;border:1px solid var(--border);background:var(--surface);color:var(--ink3);cursor:pointer;text-transform:uppercase;letter-spacing:.04em;}
+.chip.on{background:var(--terra);border-color:var(--terra);color:#fff;}
+input#search{flex:1;min-width:140px;font-family:var(--font-sans);font-size:13px;padding:7px 11px;border-radius:16px;border:1px solid var(--border);background:var(--surface);}
+.count{font-family:var(--font-mono);font-size:11px;color:var(--ink3);margin:2px 0 10px;}
+.card{background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px;}
+.card.sev-blocker{border-left-color:var(--red);}
+.card.sev-normal{border-left-color:var(--terra);}
+.card.sev-minor{border-left-color:var(--ink4);}
+.card.is-resolved{opacity:.62;border-left-color:var(--sage);}
+.card.is-snoozed{border-left-color:var(--warn);}
+.top{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:4px;}
+.ref{font-family:var(--font-mono);font-size:11px;font-weight:700;background:var(--cream);border:1px solid var(--border);border-radius:6px;padding:2px 7px;color:var(--terra-ink);}
+.type{font-family:var(--font-mono);font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:2px 7px;border-radius:10px;}
+.type.issue{background:var(--red-soft);color:var(--red);}
+.type.action{background:var(--sage-soft);color:#3f5538;}
+.type.question{background:#e2ecf1;color:var(--teal);}
+.type.decision{background:var(--warn-soft);color:#8a6614;}
+.sevtag{font-family:var(--font-mono);font-size:9.5px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.06em;}
+.due{font-family:var(--font-mono);font-size:11px;color:var(--ink2);}
+.due.overdue{color:var(--red);font-weight:700;}
+.snz{font-family:var(--font-mono);font-size:10px;color:#8a6614;}
+.jira{font-family:var(--font-mono);font-size:10px;color:var(--teal);}
+.top .sp{flex:1}
+.txt{font-size:14.5px;line-height:1.45;margin:2px 0 6px;}
+.card.is-resolved .txt{text-decoration:line-through;text-decoration-color:var(--ink4);}
+.meta{font-family:var(--font-mono);font-size:10.5px;color:var(--ink3);display:flex;gap:12px;flex-wrap:wrap;}
+.meta a{color:var(--terra);text-decoration:none;} .meta a:hover{text-decoration:underline;}
+.acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;align-items:center;}
+.abtn{font-family:var(--font-sans);font-size:12px;font-weight:600;padding:5px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bone);color:var(--ink2);cursor:pointer;}
+.abtn:hover{border-color:var(--terra);color:var(--terra-ink);}
+.abtn.primary{background:var(--sage);border-color:var(--sage);color:#fff;}
+.abtn.primary:hover{opacity:.9;color:#fff;}
+.abtn:disabled{opacity:.45;cursor:not-allowed;}
+select.asel{font-family:var(--font-sans);font-size:12px;padding:5px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bone);color:var(--ink2);max-width:150px;}
+.status-line{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;font-size:13px;padding:9px 18px;border-radius:20px;box-shadow:0 4px 14px rgba(0,0,0,.25);display:none;z-index:50;max-width:80vw;}
+.grp{font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin:20px 0 8px;}
+.grp.blockers{color:var(--red);}
+.empty{text-align:center;color:var(--ink3);font-family:var(--font-serif);font-style:italic;padding:40px 0;}
+.loading{text-align:center;color:var(--ink3);padding:40px 0;font-family:var(--font-mono);font-size:12px;}
+</style>
+</head>
+<body>
+<header><div class="head-inner">
+  <div>
+    <div class="brand"><b>Slot Studio</b> · Production</div>
+    <h1 id="title">Production panel</h1>
+  </div>
+  <div class="head-spacer"></div>
+  <div class="head-actions">
+    <select id="game-sel"></select>
+    <a class="sheet-link" id="sheet-link" target="_blank" rel="noopener">Open GameLog sheet ↗</a>
+  </div>
+</div></header>
+
+<div class="wrap">
+  <div class="bar"><div class="bar-inner">
+    <button class="tab on" data-status="open">Open</button>
+    <button class="tab" data-status="snoozed">Snoozed</button>
+    <button class="tab" data-status="resolved">Resolved</button>
+    <button class="tab" data-status="all">All</button>
+    <span style="width:8px"></span>
+    <button class="chip" data-type="issue">Issues</button>
+    <button class="chip" data-type="action">Actions</button>
+    <button class="chip" data-type="question">Questions</button>
+    <button class="chip" data-type="decision">Decisions</button>
+    <button class="chip" data-flag="overdue">Overdue</button>
+    <input id="search" type="search" placeholder="Filter text / ref / owner…">
+  </div></div>
+  <div class="count" id="count"></div>
+  <div id="list"><div class="loading">Loading…</div></div>
+</div>
+<div class="status-line" id="statusline"></div>
+
+<script>
+// REGISTRY_BEGIN — built at publish from live state
+var REGISTRY = [
+  {"game":"Asian Dumpling","channel":"C0B7F7U7268","gddUrl":""},
+  {"game":"Banana Bucks - Totally Mint","channel":"C0BCHE0E7KJ","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/18027217706/Banana+Bucks+-+Totally+Mint+GDD"},
+  {"game":"Banana Split","channel":"C0BCBL93CB0","gddUrl":""},
+  {"game":"Black & White Jackpots are Alive","channel":"C0BBLHU1TJ9","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/18027188763/Jackpots+Are+Alive+Nightmare+GDD"},
+  {"game":"Cash Factory","channel":"C0ARH9HV4HE","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/15826681857/Money+Press+GDD+Clone+of+Cooper+s+Gold+Mine"},
+  {"game":"Catch em Cryptids","channel":"C0B4VHCUY1L","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/17967349763/Catch+em+Cryptids"},
+  {"game":"Dizzy Devil","channel":"C0AQJT259V5","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/17710907425"},
+  {"game":"Dizzy Devil Duo","channel":"C0A1S3KM7NY","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/17710710810/Dizzy+Devil+Duo"},
+  {"game":"Electrolink Electric Pots","channel":"C0BCFKB3EBB","gddUrl":""},
+  {"game":"Framed in Gold","channel":"C0A82606KT5","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/16034693121/Medici+Marvels+GDD"},
+  {"game":"Genie's Album","channel":"C0B4189C11B","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/17770840065/Genie+s+Album+GDD"},
+  {"game":"Golden Train","channel":"C0BCDF6FU8Z","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/18006540291/Golden+Train+GDD"},
+  {"game":"Jackpots Are Alive!","channel":"C0AQD7YAHA5","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/17073111041"},
+  {"game":"Leprechaun","channel":"C0BBRB1UGU9","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/18027221500/Leprechaun+GDD"},
+  {"game":"Luck of Three Sequel","channel":"C0BE1FB88E6","gddUrl":""},
+  {"game":"Lunar NY/ Chinese New Year - \"Fire Goat\"","channel":"C0BBQLM7ZHP","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/18027216906/Fire+Goat+Bingo+Lucky+8s+GDD"},
+  {"game":"Mafia Dogs","channel":"C0B805RP9MK","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/18027249671/Mafia+Dogs+GDD"},
+  {"game":"Neon Stepper","channel":"C0B5JK1AVDJ","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/17743478785/Neon+Jackpots+Stepper+Game+GDD"},
+  {"game":"Robber Pigs 3-Pot","channel":"C0BBLMXE2ES","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/18027184137/Robber+Pigs+GDD"},
+  {"game":"Scarab Rising: Pyramidians","channel":"C0AC2RP7T42","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/17713041150/Egyptian+Pots+Respin+GDD"},
+  {"game":"Sheep Presidents","channel":"C0BBKRAABAR","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/18027185682/Sheep+Presidents+GDD"},
+  {"game":"The Great Vault","channel":"C0B8KHP7Y2G","gddUrl":""},
+  {"game":"Totem Torch Treasures","channel":"C0BDVTE3GUV","gddUrl":""},
+  {"game":"Turkey Trails","channel":"C0B6PBAJGAH","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/16613606259/Turkey+Trails+Thanksgiving+Reskin+of+Sheep+Trails+GDD"},
+  {"game":"Witches Castle","channel":"C0BB7N0K4BW","gddUrl":"https://playstudios.atlassian.net/wiki/spaces/MVM/pages/15848800372/Witch+s+Castle+Genie+s+Palace+Infinite+Wishes+reskin"}
+];
+// REGISTRY_END
+function qp(k,d){var v=new URLSearchParams(location.search).get(k);return v==null?d:v;}
+var API = qp('api','https://pstlv.app.n8n.cloud/webhook');
+var SHEET_URL = 'https://docs.google.com/spreadsheets/d/16hZsT9U-R3ry9FQ3Ml555QgFfgrwqH-JX4K5Tme9EWQ/edit';
+var GAME = qp('game', (REGISTRY[0]||{}).game || '');
+var STATE = { items:[], people:[], status:'open', types:{}, overdueOnly:false, q:'' };
+var todayIso = new Date().toLocaleDateString('en-CA');
+
+document.getElementById('sheet-link').href = SHEET_URL;
+// Game switcher
+(function(){
+  var sel=document.getElementById('game-sel');
+  REGISTRY.slice().sort(function(a,b){return a.game.localeCompare(b.game);}).forEach(function(r){
+    var o=document.createElement('option'); o.value=r.game; o.textContent=r.game; sel.appendChild(o);
+  });
+  if(GAME && ![].some.call(sel.options,function(o){return o.value===GAME;})){
+    var o=document.createElement('option'); o.value=GAME; o.textContent=GAME; sel.appendChild(o);
+  }
+  sel.value=GAME;
+  sel.addEventListener('change',function(){ GAME=sel.value; var u=new URL(location.href); u.searchParams.set('game',GAME); history.replaceState(null,'',u); load(); });
+})();
+
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function flash(msg,ms){var el=document.getElementById('statusline');el.textContent=msg;el.style.display='block';clearTimeout(flash._t);flash._t=setTimeout(function(){el.style.display='none';},ms||2600);}
+function fmtD(d){ if(!d) return ''; var p=String(d).split('-'); if(p.length<3) return d; return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+p[1]-1]+' '+(+p[2]); }
+function isSnoozed(m){ var s=String(m.snoozeUntil||'').trim(); return !!s && s>todayIso; }
+function isOpen(m){ return String(m.status||'').toLowerCase()!=='resolved'; }
+
+function load(){
+  document.getElementById('title').textContent = GAME || 'Production panel';
+  document.title = (GAME?GAME+' · ':'')+'Production panel';
+  document.getElementById('list').innerHTML='<div class="loading">Loading '+esc(GAME)+'…</div>';
+  fetch(API+'/panel-read?game='+encodeURIComponent(GAME))
+    .then(function(r){return r.json();})
+    .then(function(d){ STATE.items=(d.items||[]); STATE.people=(d.people||[]); render(); })
+    .catch(function(e){ document.getElementById('list').innerHTML='<div class="empty">Could not reach the panel API — '+esc(e.message)+'</div>'; });
+}
+
+function visible(){
+  return STATE.items.filter(function(m){
+    var snz=isSnoozed(m), open=isOpen(m);
+    if(STATE.status==='open' && !(open && !snz)) return false;
+    if(STATE.status==='snoozed' && !(open && snz)) return false;
+    if(STATE.status==='resolved' && open) return false;
+    var tOn=Object.keys(STATE.types).filter(function(k){return STATE.types[k];});
+    if(tOn.length && tOn.indexOf(String(m.type||'').toLowerCase())<0) return false;
+    if(STATE.overdueOnly && !(m.due && m.due<todayIso && open)) return false;
+    if(STATE.q){ var hay=((m.text||'')+' '+(m.ref||'')+' '+(m.owner||'')+' '+(m.feature||'')).toLowerCase(); if(hay.indexOf(STATE.q)<0) return false; }
+    return true;
+  });
+}
+
+function card(m){
+  var sev=String(m.severity||'normal').toLowerCase();
+  var open=isOpen(m), snz=isSnoozed(m);
+  var cls='card sev-'+sev+(open?'':' is-resolved')+(snz&&open?' is-snoozed':'');
+  var srcLbl=m.source==='meeting'?'📝 summary':(m.source==='slack'?'💬 message':'🔗 source');
+  var due=m.due?('<span class="due'+(m.due<todayIso&&open?' overdue':'')+'">'+(m.due<todayIso&&open?'⚠ ':'')+'due '+fmtD(m.due)+'</span>'):'';
+  var ppl=STATE.people.map(function(p){return '<option value="'+esc(p.name)+'"'+(p.name===m.owner?' selected':'')+'>'+esc(p.name)+'</option>';}).join('');
+  var acts='';
+  if(open){
+    acts='<button class="abtn primary" data-act="done">✓ Done</button>'+
+      '<select class="asel" data-act="assign"><option value="">Assign…</option>'+ppl+'</select>'+
+      '<select class="asel" data-act="snooze"><option value="">Snooze…</option><option value="1">1 day</option><option value="3">3 days</option><option value="7">1 week</option><option value="14">2 weeks</option></select>'+
+      '<button class="abtn" data-act="notify"'+(m.owner?'':' disabled title="Assign someone first"')+'>🔔 Notify</button>'+
+      '<button class="abtn" data-act="jira"'+(m.jiraKey?' disabled':'')+'>⤴ Jira</button>';
+  } else {
+    acts='<button class="abtn" data-act="reopen">↩ Reopen</button>';
+  }
+  return '<div class="'+cls+'" data-id="'+esc(m.id)+'">'+
+    '<div class="top">'+
+      '<span class="ref">'+esc(m.ref||m.id)+'</span>'+
+      '<span class="type '+esc(String(m.type||'').toLowerCase())+'">'+esc(m.type||'?')+'</span>'+
+      (sev==='blocker'?'<span class="sevtag">🚨 blocker</span>':'')+
+      due+
+      (snz&&open?'<span class="snz">😴 until '+fmtD(m.snoozeUntil)+'</span>':'')+
+      (m.jiraKey?'<span class="jira">⤴ '+esc(m.jiraKey)+'</span>':'')+
+      '<span class="sp"></span>'+
+      (m.owner?'<span class="due">'+esc(m.owner)+'</span>':'')+
+    '</div>'+
+    '<div class="txt">'+esc(m.text)+'</div>'+
+    '<div class="meta">'+
+      (m.feature?'<span>'+esc(m.feature)+'</span>':'')+
+      (m.link?'<a href="'+esc(m.link)+'" target="_blank" rel="noopener">'+srcLbl+'</a>':'')+
+      (m.date?'<span>added '+fmtD(m.date)+'</span>':'')+
+      (m.updated&&m.updated!==m.date?'<span>updated '+fmtD(m.updated)+'</span>':'')+
+    '</div>'+
+    '<div class="acts">'+acts+'</div>'+
+  '</div>';
+}
+
+function render(){
+  var list=visible();
+  var open=STATE.items.filter(function(m){return isOpen(m)&&!isSnoozed(m);}).length;
+  document.getElementById('count').textContent=list.length+' shown · '+open+' open · '+STATE.items.length+' total';
+  if(!list.length){ document.getElementById('list').innerHTML='<div class="empty">Nothing here — enjoy the quiet.</div>'; return; }
+  var blockers=list.filter(function(m){return String(m.severity||'').toLowerCase()==='blocker'&&isOpen(m);});
+  var rest=list.filter(function(m){return blockers.indexOf(m)<0;});
+  function byDate(a,b){return String(a.due||a.date||'9999')<String(b.due||b.date||'9999')?-1:1;}
+  var html='';
+  if(blockers.length) html+='<div class="grp blockers">🚨 Blockers ('+blockers.length+')</div>'+blockers.sort(byDate).map(card).join('');
+  if(rest.length) html+=(blockers.length?'<div class="grp">Everything else</div>':'')+rest.sort(byDate).map(card).join('');
+  document.getElementById('list').innerHTML=html;
+}
+
+// ── Filters ──
+document.querySelectorAll('.tab').forEach(function(t){t.addEventListener('click',function(){
+  document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('on');}); t.classList.add('on');
+  STATE.status=t.dataset.status; render();
+});});
+document.querySelectorAll('.chip').forEach(function(c){c.addEventListener('click',function(){
+  c.classList.toggle('on');
+  if(c.dataset.type) STATE.types[c.dataset.type]=c.classList.contains('on');
+  if(c.dataset.flag==='overdue') STATE.overdueOnly=c.classList.contains('on');
+  render();
+});});
+document.getElementById('search').addEventListener('input',function(e){STATE.q=e.target.value.trim().toLowerCase();render();});
+
+// ── Actions ──
+function post(path,body){
+  return fetch(API+'/'+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+    .then(function(r){return r.json().catch(function(){return {ok:r.ok};});});
+}
+document.getElementById('list').addEventListener('click',function(e){
+  var b=e.target.closest('.abtn'); if(!b||b.disabled) return;
+  var cardEl=e.target.closest('.card'); var id=cardEl.dataset.id;
+  var m=STATE.items.find(function(x){return String(x.id)===id;}); if(!m) return;
+  var act=b.dataset.act;
+  if(act==='done'||act==='reopen'){
+    m.status=act==='done'?'resolved':'open'; m.updated=todayIso; render();
+    post('panel-action',{action:act,game:GAME,id:id}).then(function(r){flash(r.ok?(act==='done'?'✓ '+(m.ref||id)+' marked done':'↩ '+(m.ref||id)+' reopened'):'⚠ save failed — refresh and retry');});
+  }
+  if(act==='notify'){
+    b.disabled=true;
+    post('panel-notify',{game:GAME,id:id,ref:m.ref||id,text:m.text,owner:m.owner,due:m.due||''}).then(function(r){
+      b.disabled=false;
+      flash(r.ok?('🔔 '+m.owner+' pinged in the game channel'):('⚠ '+(r.error||'could not notify')));
+      if(r.ok){m.notifiedAt=todayIso;}
+    });
+  }
+  if(act==='jira'){
+    if(!confirm('Create an MGB Feedback ticket for '+(m.ref||id)+' and close this item?')) return;
+    b.disabled=true; b.textContent='⤴ Filing…';
+    post('panel-jira',{game:GAME,id:id,ref:m.ref||id,text:m.text,due:m.due||'',link:m.link||''}).then(function(r){
+      if(r.ok){ m.status='resolved'; m.jiraKey=r.key; m.updated=todayIso; render(); flash('⤴ Filed '+r.key+' — item closed'); }
+      else { b.disabled=false; b.textContent='⤴ Jira'; flash('⚠ Jira failed: '+(r.error||'unknown')); }
+    });
+  }
+});
+document.getElementById('list').addEventListener('change',function(e){
+  var s=e.target.closest('.asel'); if(!s||!s.value) return;
+  var cardEl=e.target.closest('.card'); var id=cardEl.dataset.id;
+  var m=STATE.items.find(function(x){return String(x.id)===id;}); if(!m) return;
+  if(s.dataset.act==='assign'){
+    m.owner=s.value; m.updated=todayIso; render();
+    post('panel-action',{action:'assign',game:GAME,id:id,owner:s.value}).then(function(r){flash(r.ok?('→ assigned to '+m.owner+' (no ping — use Notify)'):'⚠ save failed');});
+  }
+  if(s.dataset.act==='snooze'){
+    var d=new Date(); d.setDate(d.getDate()+(+s.value));
+    var until=d.toLocaleDateString('en-CA');
+    m.snoozeUntil=until; m.updated=todayIso; render();
+    post('panel-action',{action:'snooze',game:GAME,id:id,snoozeUntil:until}).then(function(r){flash(r.ok?('😴 snoozed until '+fmtD(until)):'⚠ save failed');});
+  }
+});
+load();
+</script>
+</body>
+</html>
