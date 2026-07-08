@@ -197,11 +197,29 @@ function load(){
     document.getElementById('list').innerHTML='<div class="empty">👆 Pick a game from the dropdown above to load its board.<br><span style="font-family:var(--font-mono);font-size:11px;font-style:normal;color:var(--ink4)">Each game takes 10–20 seconds to fetch — it\'s always live data.</span></div>';
     return;
   }
-  document.getElementById('list').innerHTML='<div class="loading">Loading '+esc(GAME)+'…</div>';
+  // Stale-while-revalidate: if we've seen this game this session, show that
+  // board INSTANTLY and refresh live data behind it — turns the 10-20s n8n
+  // fetch into a background update on every revisit.
+  var reqGame = GAME;
+  var cached = null;
+  try{ cached = JSON.parse(sessionStorage.getItem('panelCache:'+GAME) || 'null'); }catch(e){}
+  if(cached && cached.items){
+    STATE.items = cached.items; STATE.people = cached.people || [];
+    render();
+    flash('Showing the last-loaded board — refreshing live data…', 5000);
+  } else {
+    document.getElementById('list').innerHTML='<div class="loading">Loading '+esc(GAME)+'…<br><span style="opacity:.7">live fetch — usually 10–20 seconds</span></div>';
+  }
   fetch(API+'/panel-read?game='+encodeURIComponent(GAME))
     .then(function(r){return r.json();})
-    .then(function(d){ STATE.items=(d.items||[]); STATE.people=(d.people||[]); render(); })
-    .catch(function(e){ document.getElementById('list').innerHTML='<div class="empty">Could not reach the panel API — '+esc(e.message)+'</div>'; });
+    .then(function(d){
+      if(GAME !== reqGame) return;   // user switched games mid-fetch
+      STATE.items=(d.items||[]); STATE.people=(d.people||[]);
+      try{ sessionStorage.setItem('panelCache:'+reqGame, JSON.stringify({at:Date.now(), items:STATE.items, people:STATE.people})); }catch(e){}
+      render();
+      if(cached) flash('✓ Live data loaded');
+    })
+    .catch(function(e){ if(GAME===reqGame && !cached) document.getElementById('list').innerHTML='<div class="empty">Could not reach the panel API — '+esc(e.message)+'</div>'; });
 }
 
 function visible(){
@@ -291,6 +309,9 @@ function renderJira(){
 
 function render(){
   if(!GAME){ load(); return; }   // landing state — keep the picker prompt up
+  // Write-through: keep the session cache in sync with optimistic action edits
+  // so a revisit never resurrects a pre-action board.
+  if(STATE.items.length){ try{ sessionStorage.setItem('panelCache:'+GAME, JSON.stringify({at:Date.now(), items:STATE.items, people:STATE.people})); }catch(e){} }
   if(STATE.status==='jira'){ renderJira(); return; }
   var list=visible();
   var open=STATE.items.filter(function(m){return isOpen(m)&&!isSnoozed(m);}).length;
