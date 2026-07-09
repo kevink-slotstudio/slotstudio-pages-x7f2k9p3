@@ -192,6 +192,10 @@ function fmtDate(iso){
   return MONTHS[m-1]+' '+d+', '+y;
 }
 function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+// Overdue is computed LIVE from the due date (vs the viewer's today), never
+// from a baked status — the slim link payload doesn't carry one, and a baked
+// flag would go stale if the form is opened days after the check-in was sent.
+function isOverdue(m){ return !!(m && m.due && String(m.due) < todayIso()); }
 
 // ── Render ────────────────────────────────────────────────────────────
 function render(){
@@ -208,7 +212,7 @@ function render(){
   }
   if(P.person){ document.getElementById('hello').textContent = 'Hi '+P.person.split(' ')[0]+' — your milestones'; }
   document.getElementById('chip-count').textContent = ITEMS.length+' milestone'+(ITEMS.length===1?'':'s');
-  var od = ITEMS.filter(function(m){return m.status==='overdue';}).length;
+  var od = ITEMS.filter(isOverdue).length;
   document.getElementById('chip-date').textContent = od? (od+' overdue') : 'all due soon';
 
   var list=document.getElementById('ms-list');
@@ -229,8 +233,8 @@ function render(){
   list.innerHTML = groups.map(function(g){
     var cards=g.rows.map(function(row){
       var m=row.m, i=row.i;
-      var st = m.status==='overdue' ? 'overdue' : 'soon';
-      var badge = m.status==='overdue' ? 'Overdue' : 'Due soon';
+      var st = isOverdue(m) ? 'overdue' : 'soon';
+      var badge = isOverdue(m) ? 'Overdue' : 'Due soon';
       var ctxbits=[]; if(m.app) ctxbits.push(m.app); if(m.disc) ctxbits.push(m.disc);
       return ''+
       '<div class="card ms-card '+st+'" data-idx="'+i+'">'+
