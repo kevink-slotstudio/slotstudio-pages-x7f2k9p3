@@ -212,7 +212,7 @@ textarea{min-height:62px;resize:vertical;}
           <div class="field">
             <label class="lbl" for="f-est"><span id="lbl-est">Your estimate</span> <span class="req">*</span><span class="tip" id="wd-tip" title="">i</span></label>
             <p class="help" id="help-est">How many working days do you need for your discipline on this game?</p>
-            <input type="number" id="f-est" min="0" step="0.5" oninput="onEstimate()" placeholder="—">
+            <input type="number" id="f-est" min="0" step="0.5" oninput="this.dataset.autofill='0';onEstimate()" placeholder="—">
           </div>
           <div class="delta-note" id="delta-note"></div>
           <div class="field" id="reason-field" style="display:none">
@@ -580,17 +580,18 @@ var I18N = {
 
 // ── Baselines (prototype mirror of the tool's Scope Templates; GD = pre-prod) ──
 var BASELINES = {
-  'Huge Game':{GD:20,Art:90,BEE:60,FEE:90,TA:90,VFX:90,QA:15,BEEp:60,FEEp:60,TAp:60,VFXp:60,QAp:15},
-  'Original' :{GD:20,Art:80,BEE:40,FEE:65,TA:60,VFX:65,QA:10,BEEp:40,FEEp:40,TAp:40,VFXp:40,QAp:10},
-  'N+1'      :{GD:15,Art:70,BEE:20,FEE:40,TA:50,VFX:50,QA:10,BEEp:30,FEEp:30,TAp:30,VFXp:30,QAp:10},
-  'N+2'      :{GD:20,Art:75,BEE:30,FEE:50,TA:55,VFX:55,QA:10,BEEp:35,FEEp:35,TAp:35,VFXp:35,QAp:10},
-  'Reskin'   :{GD:3, Art:60,BEE:1, FEE:5, TA:40,VFX:50,QA:5, BEEp:1, FEEp:1, TAp:20,VFXp:20,QAp:5},
-  'Sequel'   :{GD:10,Art:40,BEE:20,FEE:30,TA:25,VFX:30,QA:10,BEEp:20,FEEp:20,TAp:15,VFXp:15,QAp:5},
-  'Variant'  :{GD:5, Art:25,BEE:15,FEE:10,TA:10,VFX:10,QA:5, BEEp:15,FEEp:15,TAp:10,VFXp:10,QAp:5},
-  'Seasonal' :{GD:2, Art:15,BEE:1, FEE:1, TA:10,VFX:10,QA:5, BEEp:1, FEEp:1, TAp:5, VFXp:5, QAp:5},
-  'IGT'      :{GD:20,Art:15,BEE:40,FEE:65,TA:65,VFX:65,QA:15,BEEp:40,FEEp:40,TAp:40,VFXp:40,QAp:15},
-  'KMS Port' :{GD:1, Art:1, BEE:5, FEE:1, TA:1, VFX:1, QA:10,BEEp:40,FEEp:40,TAp:40,VFXp:40,QAp:15},
-  'TWZ Port' :{GD:3, Art:4, BEE:4, FEE:5, TA:5, VFX:0, QA:0, BEEp:0, FEEp:0, TAp:0, VFXp:0, QAp:0}
+  "Huge Game":{GD:20,Art:90,BEE:60,FEE:90,TA:90,VFX:90,QA:15,BEEp:60,FEEp:60,TAp:60,VFXp:60,QAp:15},
+  "Original":{GD:20,Art:80,BEE:40,FEE:65,TA:60,VFX:65,QA:10,BEEp:40,FEEp:40,TAp:40,VFXp:40,QAp:10},
+  "N+1":{GD:15,Art:70,BEE:20,FEE:40,TA:50,VFX:50,QA:10,BEEp:30,FEEp:30,TAp:30,VFXp:30,QAp:10},
+  "N+2":{GD:20,Art:75,BEE:30,FEE:50,TA:55,VFX:55,QA:10,BEEp:35,FEEp:35,TAp:35,VFXp:35,QAp:10},
+  "Reskin":{GD:3,Art:60,BEE:1,FEE:5,TA:40,VFX:50,QA:5,BEEp:1,FEEp:1,TAp:20,VFXp:20,QAp:5},
+  "Sequel":{GD:10,Art:40,BEE:20,FEE:30,TA:25,VFX:30,QA:10,BEEp:20,FEEp:20,TAp:15,VFXp:15,QAp:5},
+  "Variant":{GD:5,Art:25,BEE:15,FEE:10,TA:10,VFX:10,QA:5,BEEp:15,FEEp:15,TAp:10,VFXp:10,QAp:5},
+  "Seasonal":{GD:2,Art:15,BEE:1,FEE:1,TA:10,VFX:10,QA:5,BEEp:1,FEEp:1,TAp:5,VFXp:5,QAp:5},
+  "IGT":{GD:20,Art:15,BEE:40,FEE:65,TA:65,VFX:65,QA:15,BEEp:40,FEEp:40,TAp:40,VFXp:40,QAp:15},
+  "KMS Port":{GD:1,Art:1,BEE:5,FEE:1,TA:1,VFX:1,QA:10,BEEp:40,FEEp:40,TAp:40,VFXp:40,QAp:15},
+  "TWZ Port":{GD:3,Art:4,BEE:4,FEE:5,TA:5,VFX:0,QA:0,BEEp:0,FEEp:0,TAp:0,VFXp:0,QAp:0},
+  "Pop Port":{GD:20,Art:80,BEE:40,FEE:65,TA:60,VFX:65,QA:10,BEEp:40,FEEp:40,TAp:40,VFXp:40,QAp:10}
 };
 var FULL_TYPES = ['Huge Game','Original','N+1','N+2','Sequel','IGT'];
 var LITE_TYPES = ['Reskin','Variant','Seasonal'];
@@ -751,6 +752,17 @@ function onDiscChange(){
   var base=baselineFor(P.type,d.key);
   setText('baseline-n', base==null?'—':base); setText('baseline-days', base==null?'—':base);
   setText('baseline-type',P.type);
+  // 2026-09: pre-populate the Phase-2 estimate with the baseline so the
+  // estimator edits FROM the typical number instead of a blank box. Only
+  // while the field is untouched (or still holding a previous autofill) —
+  // a hand-typed value is never clobbered on discipline switch.
+  if(PHASE==='2'){
+    var estEl=document.getElementById('f-est');
+    if(estEl && (estEl.value==='' || estEl.dataset.autofill==='1')){
+      estEl.value = (base==null?'':base);
+      estEl.dataset.autofill = '1';
+    }
+  }
   document.getElementById('baseline-gd-note').style.display=isGd(d.key)?'inline':'none';
   document.getElementById('vfx-block').classList.toggle('show', PHASE==='2' && isVfx(d.key));
   if(PHASE==='3'){
@@ -977,7 +989,9 @@ function copyJson(){var x=document.getElementById('result-json').textContent;if(
   document.getElementById('num-fields').style.display = (PHASE==='1')?'none':'block';
   document.getElementById('p2-extra').style.display   = (PHASE==='2')?'block':'none';
   document.getElementById('p3-extra').style.display   = (PHASE==='3')?'block':'none';
-  document.getElementById('baseline-box').style.display = (PHASE==='2')?'flex':'none';
+  // 2026-09: Phase 1 is a read "against the game type's baseline" — show the
+  // baseline number there too, not just on Phase 2.
+  document.getElementById('baseline-box').style.display = (PHASE==='1'||PHASE==='2')?'flex':'none';
   document.getElementById('compare-box').style.display  = (PHASE==='3')?'flex':'none';
   buildDiscDropdown();
   if(PHASE==='3'){ buildPlatformRows(); prefillPhase3Carry(); }
