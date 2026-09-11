@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Game brief · Slot Studio</title>
+<!--
+  Game-brief form (2026-09, pitch-request chain). The PM tool DMs this link to
+  the brief owners (Ryan + Kelly) when a game nears its pitch horizon. Context
+  comes from the URL — dates/type/platforms are prefilled from the tool:
+    brief-form.html?game=Money%20Bolt%20Xtreme&gameId=12&type=Sequel&apps=MVM,TWZ,Pop
+                    &launch=MVM:2027-07-01,TWZ:2027-07-01&artStart=2026-11-26&gdStart=2026-10-01
+                    &webhook=https://...&by=Ryan
+  Submits {type:'brief_submission'} JSON to ?webhook= (n8n) if set; otherwise
+  shows a copyable payload the producer can paste into the tool.
+-->
+<style>
+:root{
+  --ink:#23252b; --ink2:#4d5366; --ink3:#7a7f8c;
+  --bone:#faf6ee; --cream:#f3ecdd; --surface:#fffdf8; --border:#e3dcc9; --border2:#efe9da;
+  --navy:#1f2a44; --terra:#B86B4A; --terra-soft:#F2D9CB; --sage:#5F7D55; --sage-soft:#e2ead8; --warn:#C49328;
+  --font-serif:"Fraunces",Georgia,serif; --font-sans:"Inter Tight","Inter",system-ui,sans-serif; --font-mono:"JetBrains Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bone);color:var(--ink);font-family:var(--font-sans);font-size:15px;line-height:1.55;}
+header{background:var(--navy);color:#fff;}
+.head-inner{max-width:720px;margin:0 auto;padding:18px;}
+.brand{font-family:var(--font-serif);font-size:15px;letter-spacing:.02em;opacity:.85}
+h1{font-family:var(--font-serif);font-weight:500;font-size:26px;margin:6px 0 0;letter-spacing:-.01em}
+.wrap{max-width:720px;margin:0 auto;padding:0 18px 80px;}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-top:18px;}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px 18px;}
+.fact .k{font-family:var(--font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3)}
+.fact .v{font-weight:600;font-size:14px}
+.field{margin-top:14px}
+.lbl{display:block;font-weight:600;font-size:13px;margin-bottom:4px}
+.help{margin:0 0 6px;font-size:12px;color:var(--ink3)}
+input[type=text],input[type=url],textarea{width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:8px;background:#fff;font:inherit;font-size:14px;}
+textarea{min-height:76px;resize:vertical}
+.videos .row{display:grid;grid-template-columns:1fr 2fr;gap:8px;margin-top:6px}
+.req{color:var(--terra)}
+button{font:inherit}
+.go{background:var(--navy);color:#fff;border:none;border-radius:9px;padding:11px 18px;font-weight:600;font-size:14px;cursor:pointer;margin-top:18px}
+.go:disabled{opacity:.5;cursor:default}
+.status{margin-top:12px;font-size:13px;color:var(--sage)}
+.status.err{color:#a84539}
+pre{background:var(--cream);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:12px;white-space:pre-wrap;word-break:break-word}
+.preview{white-space:pre-wrap;font-size:13.5px;background:var(--cream);border:1px solid var(--border);border-radius:8px;padding:12px}
+</style>
+</head>
+<body>
+<header><div class="head-inner"><div class="brand">Slot Studio · pitch request</div><h1 id="h-title">Game brief</h1></div></header>
+<div class="wrap">
+  <div class="card">
+    <div class="facts" id="facts"></div>
+    <p class="help" style="margin-top:12px">Dates, type and platforms come from the roadmap. Fill in the creative direction below — it becomes the <em>Next game brief…</em> post to the game designers, word for word.</p>
+  </div>
+  <div class="card">
+    <div class="field"><label class="lbl" for="f-typelabel">Type <span class="req">*</span></label><p class="help">As the designers should read it — e.g. "Money Bolt Sequel", "Original", "N+1 of Kong".</p><input type="text" id="f-typelabel"></div>
+    <div class="field"><label class="lbl" for="f-insp">Inspiration <span class="req">*</span></label><p class="help">Games this should draw from (ours or the market's).</p><input type="text" id="f-insp" placeholder="Money Bolt, Straight Cash 3-Play"></div>
+    <div class="field"><label class="lbl" for="f-theme">Theme request</label><input type="text" id="f-theme" placeholder="Sequel — same theme"></div>
+    <div class="field"><label class="lbl" for="f-feat">Key features from inspiration</label><input type="text" id="f-feat" placeholder="Instant Cash Win, ElectroLink, Cash Win Reveal, Wheel Cash Reveal"></div>
+    <div class="field"><label class="lbl" for="f-notes">Notes</label><p class="help">Constraints, what we want to carry over, why — anything the designers need to hear before they pitch.</p><textarea id="f-notes"></textarea></div>
+    <div class="field videos"><label class="lbl">Reference videos</label><p class="help">Label + link. Leave blank rows empty.</p>
+      <div class="row"><input type="text" id="f-v1l" placeholder="Video 1 (Straight Cash 3-Play)"><input type="url" id="f-v1u" placeholder="https://youtube.com/…"></div>
+      <div class="row"><input type="text" id="f-v2l" placeholder="Video 2"><input type="url" id="f-v2u" placeholder="https://"></div>
+      <div class="row"><input type="text" id="f-v3l" placeholder="Video 3"><input type="url" id="f-v3u" placeholder="https://"></div>
+    </div>
+    <div class="field"><label class="lbl" for="f-name">Your name <span class="req">*</span></label><input type="text" id="f-name"></div>
+    <button class="go" id="go" onclick="submitBrief()">Send brief</button>
+    <div class="status" id="status"></div>
+    <div id="fallback" style="display:none;margin-top:12px"><p class="help">No webhook is set — copy this and paste it into the PM tool (game → Paste brief).</p><pre id="payload"></pre></div>
+  </div>
+  <div class="card"><div class="lbl">Preview of the designers' post</div><div class="preview" id="preview"></div></div>
+</div>
+<script>
+function qp(k,d){var m=new RegExp('[?&]'+k+'=([^&]*)').exec(location.search);return m?decodeURIComponent(m[1].replace(/\+/g,' ')):d;}
+var P={game:qp('game','Game'),gameId:qp('gameId',''),type:qp('type',''),apps:qp('apps','').split(',').filter(Boolean),
+  launch:qp('launch',''),artStart:qp('artStart',''),gdStart:qp('gdStart',''),webhook:qp('webhook',''),by:qp('by','')};
+function longDate(iso){ if(!iso) return '—'; var d=new Date(iso+'T12:00:00'); if(isNaN(d)) return iso;
+  var n=d.getDate(), s=(n%10===1&&n!==11)?'st':(n%10===2&&n!==12)?'nd':(n%10===3&&n!==13)?'rd':'th';
+  var mo=['Jan.','Feb.','March','April','May','June','July','Aug.','Sept.','Oct.','Nov.','Dec.'][d.getMonth()];
+  return mo+' '+n+s+', '+d.getFullYear(); }
+function launchText(){ if(!P.launch) return '—'; return P.launch.split(',').map(function(x){var kv=x.split(':');return kv.length>1?(kv[0]+' '+longDate(kv[1])):longDate(kv[0]);}).join(' · '); }
+function el(id){return document.getElementById(id);}
+function val(id){return (el(id).value||'').trim();}
+document.getElementById('h-title').textContent='Game brief — '+P.game;
+document.getElementById('facts').innerHTML=[['Game',P.game],['Launch',launchText()],['Art start',longDate(P.artStart)],['GD start',longDate(P.gdStart)],['Type',P.type||'—'],['Platforms',P.apps.join(', ')||'—']]
+  .map(function(f){return '<div class="fact"><div class="k">'+f[0]+'</div><div class="v">'+f[1]+'</div></div>';}).join('');
+if(P.type) el('f-typelabel').value=P.type; if(P.by) el('f-name').value=P.by;
+function videos(){ return [1,2,3].map(function(i){return {label:val('f-v'+i+'l'),url:val('f-v'+i+'u')};}).filter(function(v){return v.url;}); }
+function buildPayload(){
+  return {type:'brief_submission',version:1,gameId:P.gameId?Number(P.gameId):null,game:P.game,gameType:P.type,apps:P.apps,
+    launch:P.launch,artStart:P.artStart,gdStart:P.gdStart,
+    gameTypeLabel:val('f-typelabel'),inspiration:val('f-insp'),themeRequest:val('f-theme'),keyFeatures:val('f-feat'),notes:val('f-notes'),
+    videos:videos(),submittedBy:val('f-name'),submittedAt:new Date().toISOString()};
+}
+function previewText(){
+  var p=buildPayload(), L=['@here Next game brief….','',p.game,''];
+  L.push('• Launch Date: '+launchText());
+  L.push('• Art Start Date: '+longDate(P.artStart));
+  L.push('• Type: '+(p.gameTypeLabel||P.type||'—'));
+  L.push('• Platforms: '+(P.apps.join(', ')||'—'));
+  if(p.inspiration) L.push('• Inspiration: '+p.inspiration);
+  if(p.themeRequest) L.push('• Theme Request: '+p.themeRequest);
+  if(p.keyFeatures) L.push('• Key features from Inspiration: '+p.keyFeatures);
+  if(p.notes) L.push('• Notes - '+p.notes);
+  p.videos.forEach(function(v,i){ L.push('• '+(v.label||('Video '+(i+1)))+': '+v.url); });
+  return L.join('\n');
+}
+function refresh(){ el('preview').textContent=previewText(); }
+Array.prototype.forEach.call(document.querySelectorAll('input,textarea'),function(i){ i.addEventListener('input',refresh); });
+refresh();
+function submitBrief(){
+  var st=el('status'); st.className='status'; st.textContent='';
+  if(!val('f-typelabel')||!val('f-insp')||!val('f-name')){ st.className='status err'; st.textContent='Type, inspiration and your name are required.'; return; }
+  var payload=buildPayload();
+  if(!P.webhook){ el('fallback').style.display='block'; el('payload').textContent=JSON.stringify(payload,null,2); st.textContent='Copy the payload below into the PM tool.'; return; }
+  el('go').disabled=true; st.textContent='Sending…';
+  fetch(P.webhook,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); st.textContent='Brief sent ✓ — the producer will send the pitch request from here.'; })
+    .catch(function(e){ el('go').disabled=false; st.className='status err'; st.textContent='Send failed ('+e.message+'). Copy the payload below and send it to your producer.'; el('fallback').style.display='block'; el('payload').textContent=JSON.stringify(payload,null,2); });
+}
+</script>
+</body>
+</html>
