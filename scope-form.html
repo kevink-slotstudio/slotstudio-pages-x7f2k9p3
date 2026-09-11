@@ -591,7 +591,7 @@ var BASELINES = {
   "IGT":{GD:20,Art:15,BEE:40,FEE:65,TA:65,VFX:65,QA:15,BEEp:40,FEEp:40,TAp:40,VFXp:40,QAp:15},
   "KMS Port":{GD:1,Art:1,BEE:5,FEE:1,TA:1,VFX:1,QA:10,BEEp:40,FEEp:40,TAp:40,VFXp:40,QAp:15},
   "TWZ Port":{GD:3,Art:4,BEE:4,FEE:5,TA:5,VFX:0,QA:0,BEEp:0,FEEp:0,TAp:0,VFXp:0,QAp:0},
-  "Pop Port":{GD:20,Art:80,BEE:40,FEE:65,TA:60,VFX:65,QA:10,BEEp:40,FEEp:40,TAp:40,VFXp:40,QAp:10}
+  "Pop Port":{GD:5,Art:10,BEE:0,FEE:0,TA:0,VFX:0,QA:0,BEEp:40,FEEp:40,TAp:40,VFXp:40,QAp:10}
 };
 var FULL_TYPES = ['Huge Game','Original','N+1','N+2','Sequel','IGT'];
 var LITE_TYPES = ['Reskin','Variant','Seasonal'];
@@ -621,6 +621,8 @@ function t(k){return (I18N[LANG] && I18N[LANG][k]) || I18N.en[k] || k;}
 
 function disciplinesFor(type, apps){
   var out=[]; if(EXEMPT_TYPES.indexOf(type)>=0) return out;
+  // Pop Port (2026-09): GD/Art from the template, no SS client/BEE; the Gear team scopes in full.
+  if(type==='Pop Port') return ['BEEp','FEEp','TAp','VFXp'].map(function(k){return {key:k,side:'Gear',label:DISC_LABEL_GEAR[k]};});
   var ssKeys = (LITE_TYPES.indexOf(type)>=0) ? ['FEE','TA','VFX'] : ['GD','Art','BEE','FEE','TA','VFX'];
   var needsSS = apps.some(function(a){return a==='MVM'||a==='TWZ'||a==='Crown';});
   var needsGear = apps.indexOf('Pop')>=0;
