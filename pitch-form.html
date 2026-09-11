@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Submit a pitch · Slot Studio</title>
+<!--
+  Pitch-link form (2026-09, pitch-request chain). Linked from the "Next game
+  brief…" post in the game designers channel. A designer drops the deck link
+  here; it lands in the Pitches sheet and the PM tool imports it on the next
+  "Check for updates" as a Draft pitch on the game.
+    pitch-form.html?game=Money%20Bolt%20Xtreme&gameId=12&webhook=https://.../new-pitch
+  Posts {gameId, gameName, name, url, submittedBy, notes} to ?webhook=.
+-->
+<style>
+:root{--ink:#23252b;--ink2:#4d5366;--ink3:#7a7f8c;--bone:#faf6ee;--cream:#f3ecdd;--surface:#fffdf8;--border:#e3dcc9;--navy:#1f2a44;--terra:#B86B4A;--sage:#5F7D55;
+  --font-serif:"Fraunces",Georgia,serif;--font-sans:"Inter Tight","Inter",system-ui,sans-serif;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bone);color:var(--ink);font-family:var(--font-sans);font-size:15px;line-height:1.55;}
+header{background:var(--navy);color:#fff;} .head-inner{max-width:640px;margin:0 auto;padding:18px;}
+.brand{font-family:var(--font-serif);font-size:15px;opacity:.85} h1{font-family:var(--font-serif);font-weight:500;font-size:26px;margin:6px 0 0}
+.wrap{max-width:640px;margin:0 auto;padding:0 18px 80px;}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-top:18px;}
+.field{margin-top:14px} .lbl{display:block;font-weight:600;font-size:13px;margin-bottom:4px} .help{margin:0 0 6px;font-size:12px;color:var(--ink3)}
+input,textarea{width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:8px;background:#fff;font:inherit;font-size:14px;} textarea{min-height:70px;resize:vertical}
+.req{color:var(--terra)} button{font:inherit}
+.go{background:var(--navy);color:#fff;border:none;border-radius:9px;padding:11px 18px;font-weight:600;font-size:14px;cursor:pointer;margin-top:18px} .go:disabled{opacity:.5}
+.status{margin-top:12px;font-size:13px;color:var(--sage)} .status.err{color:#a84539}
+pre{background:var(--cream);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:12px;white-space:pre-wrap;word-break:break-word}
+</style>
+</head>
+<body>
+<header><div class="head-inner"><div class="brand">Slot Studio · pitch request</div><h1 id="h-title">Submit a pitch</h1></div></header>
+<div class="wrap"><div class="card">
+  <p class="help" id="intro"></p>
+  <div class="field"><label class="lbl" for="f-name">Your name <span class="req">*</span></label><input type="text" id="f-name"></div>
+  <div class="field"><label class="lbl" for="f-title">Pitch title <span class="req">*</span></label><p class="help">How it should read on the agenda — e.g. "Xtreme ElectroLink Wheel".</p><input type="text" id="f-title"></div>
+  <div class="field"><label class="lbl" for="f-url">Deck link <span class="req">*</span></label><p class="help">Google Slides / Confluence / Drive — anything the committee can open.</p><input type="url" id="f-url" placeholder="https://"></div>
+  <div class="field"><label class="lbl" for="f-notes">One-line summary <span style="color:var(--ink3);font-weight:400">(optional)</span></label><textarea id="f-notes"></textarea></div>
+  <button class="go" id="go" onclick="submitPitch()">Submit pitch</button>
+  <div class="status" id="status"></div>
+  <div id="fallback" style="display:none;margin-top:12px"><p class="help">No webhook is set — send this to your producer.</p><pre id="payload"></pre></div>
+</div></div>
+<script>
+function qp(k,d){var m=new RegExp('[?&]'+k+'=([^&]*)').exec(location.search);return m?decodeURIComponent(m[1].replace(/\+/g,' ')):d;}
+var P={game:qp('game','Game'),gameId:qp('gameId',''),webhook:qp('webhook',''),by:qp('by','')};
+function el(id){return document.getElementById(id);} function val(id){return (el(id).value||'').trim();}
+el('h-title').textContent='Submit a pitch — '+P.game;
+el('intro').textContent='Your pitch is added to '+P.game+' as a draft and goes on the next pitch-meeting agenda. Also drop the deck in #slotstudio-greenlight so the committee sees it.';
+if(P.by) el('f-name').value=P.by;
+function buildPayload(){ return {gameId:P.gameId?Number(P.gameId):null,gameName:P.game,name:val('f-title'),url:val('f-url'),submittedBy:val('f-name'),notes:val('f-notes'),submittedAt:new Date().toISOString()}; }
+function submitPitch(){
+  var st=el('status'); st.className='status'; st.textContent='';
+  if(!val('f-name')||!val('f-title')||!/^https?:\/\//i.test(val('f-url'))){ st.className='status err'; st.textContent='Name, title and a full https:// deck link are required.'; return; }
+  var payload=buildPayload();
+  if(!P.webhook){ el('fallback').style.display='block'; el('payload').textContent=JSON.stringify(payload,null,2); return; }
+  el('go').disabled=true; st.textContent='Sending…';
+  fetch(P.webhook,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); st.textContent='Pitch submitted ✓ — thanks. It shows up on the agenda once the producer syncs.'; })
+    .catch(function(e){ el('go').disabled=false; st.className='status err'; st.textContent='Send failed ('+e.message+').'; el('fallback').style.display='block'; el('payload').textContent=JSON.stringify(payload,null,2); });
+}
+</script>
+</body>
+</html>
