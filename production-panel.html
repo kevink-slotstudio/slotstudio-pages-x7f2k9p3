@@ -12,7 +12,7 @@
   sheet stays the single source of truth, so digests/bot/reports pick up every
   change automatically. Team-facing Slack digests are read-only; THIS is where
   actions live: mark done, reopen, assign (no ping), snooze, Notify (@mention in
-  the game channel, opt-in), and Jira handoff (SGT "Feedback" ticket under the game's epic, closes the
+  the game channel, opt-in), and Jira handoff (MGB "Feedback" ticket, closes the
   item). REGISTRY below is re-baked from live state on every publish.
 -->
 <style>
@@ -166,8 +166,7 @@ var REGISTRY = [
 function qp(k,d){var v=new URLSearchParams(location.search).get(k);return v==null?d:v;}
 var API = qp('api','https://pstlv.app.n8n.cloud/webhook');
 var SHEET_URL = 'https://docs.google.com/spreadsheets/d/16hZsT9U-R3ry9FQ3Ml555QgFfgrwqH-JX4K5Tme9EWQ/edit';
-// SGT (this site) is the home for feedback as of 2026-11; rows filed before that carry MGB keys on the client teams' site.
-function jiraBrowse(key){ return (/^MGB-/i.test(String(key||'')) ? 'https://psasia.atlassian.net' : 'https://playstudios.atlassian.net') + '/browse/' + key; }
+var JIRA_BROWSE = 'https://psasia.atlassian.net/browse/';
 // No default game: without ?game= the page shows a "pick a game" landing state
 // instead of burning a 10-20s n8n fetch on whatever sorts first.
 var GAME = qp('game','');
@@ -270,7 +269,7 @@ function card(m){
       (sev==='blocker'?'<span class="sevtag">🚨 blocker</span>':'')+
       due+
       (snz&&open?'<span class="snz">😴 until '+fmtD(m.snoozeUntil)+'</span>':'')+
-      (m.jiraKey?'<a class="jira" href="'+esc(jiraBrowse(m.jiraKey))+'" target="_blank" rel="noopener">⤴ '+esc(m.jiraKey)+'</a>':'')+
+      (m.jiraKey?'<a class="jira" href="'+esc(JIRA_BROWSE+m.jiraKey)+'" target="_blank" rel="noopener">⤴ '+esc(m.jiraKey)+'</a>':'')+
       '<span class="sp"></span>'+
       (m.owner?'<span class="due">'+esc(m.owner)+'</span>':'')+
     '</div>'+
@@ -285,13 +284,13 @@ function card(m){
   '</div>';
 }
 
-// "Jira" tab: live SGT tickets under this game's epic, fetched
+// "Jira" tab: live MGB tickets for this game (component = game name), fetched
 // through the n8n panel API — Jira Cloud can't be iframed, so this is the
 // embedded filter. Cached per game; invalidated when a new ticket is filed.
 function renderJira(){
   if(!STATE.jira){
     document.getElementById('count').textContent='';
-    document.getElementById('list').innerHTML='<div class="loading">Loading Jira tickets…</div>';
+    document.getElementById('list').innerHTML='<div class="loading">Loading MGB tickets…</div>';
     fetch(API+'/panel-jira-list?game='+encodeURIComponent(GAME))
       .then(function(r){return r.json();})
       .then(function(d){ STATE.jira=d; if(STATE.status==='jira') renderJira(); })
@@ -299,9 +298,9 @@ function renderJira(){
     return;
   }
   var d=STATE.jira, ts=d.tickets||[];
-  document.getElementById('count').innerHTML=ts.length+' '+esc(d.project||'Jira')+' ticket'+(ts.length===1?'':'s')+' for '+esc(GAME)+(d.epicKey?' (epic '+esc(d.epicKey)+')':'')+' · <a class="jira-open" href="'+esc(d.jiraUrl||'#')+'" target="_blank" rel="noopener">open this list in Jira ↗</a>';
-  if(d.error){ document.getElementById('list').innerHTML='<div class="empty">'+(d.epicKey?'Jira search failed: ':'')+esc(d.error)+'</div>'; return; }
-  if(!ts.length){ document.getElementById('list').innerHTML='<div class="empty">No Jira tickets for this game yet — file one from any open item.</div>'; return; }
+  document.getElementById('count').innerHTML=ts.length+' MGB ticket'+(ts.length===1?'':'s')+' for '+esc(GAME)+' · <a class="jira-open" href="'+esc(d.jiraUrl||'#')+'" target="_blank" rel="noopener">open this filter in Jira ↗</a>';
+  if(d.error){ document.getElementById('list').innerHTML='<div class="empty">Jira search failed: '+esc(d.error)+'</div>'; return; }
+  if(!ts.length){ document.getElementById('list').innerHTML='<div class="empty">No MGB tickets for this game yet — file one from any open item.</div>'; return; }
   document.getElementById('list').innerHTML=ts.map(function(t){
     return '<div class="card" style="border-left-color:var(--teal)">'+
       '<div class="top">'+
@@ -371,7 +370,7 @@ document.getElementById('list').addEventListener('click',function(e){
     });
   }
   if(act==='jira'){
-    if(!confirm('File '+(m.ref||id)+' as a Jira Feedback ticket and close this item?')) return;
+    if(!confirm('Create an MGB Feedback ticket for '+(m.ref||id)+' and close this item?')) return;
     b.disabled=true; b.textContent='⤴ Filing…';
     post('panel-jira',{game:GAME,id:id,ref:m.ref||id,text:m.text,due:m.due||'',link:m.link||''}).then(function(r){
       if(r.ok){ m.status='resolved'; m.jiraKey=r.key; m.updated=todayIso; STATE.jira=null; render(); flash('⤴ Filed '+r.key+' — item closed'); }
